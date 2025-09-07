@@ -2,7 +2,7 @@
  * This file (js/ui/modals.js) contains the logic for creating and displaying
  * all modal windows in the application. The Factory Summary has been completely
  * redesigned into a multi-tab dashboard for better visual appeal and more detailed information.
- */ 
+ */
 import dom from '/SatisfiedVisual/js/dom.js';
 import state from '/SatisfiedVisual/js/state.js';
 import { recipeData } from '/SatisfiedVisual/js/data/recipes.js';
@@ -533,5 +533,6 @@ export function showAutoBuildOptionsModal(onConfirm) {
     modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
 
 }
+
 
 
