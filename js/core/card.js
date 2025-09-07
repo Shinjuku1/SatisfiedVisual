@@ -3,14 +3,14 @@
  * adding its event listeners, and removing it from the DOM and state. It now includes
  * special logic for dynamic fuel switching on power plant cards and correct power display.
  */
-import dom from '/js/dom.js';
-import state from '/js/state.js';
-import { recipeData } from '/js/data/recipes.js';
-import { SOMERSLOOP_SLOTS } from '/js/constants.js';
-import { updateCardCalculations, updateAllCalculations } from '/js/core/calculations.js';
-import { showModal } from '/js/ui/modals.js';
-import { showContextMenu } from '/js/ui/contextMenu.js';
-import { renderCardSelections, renderSelectionSummary, renderConnections, renderHighlights } from '/js/ui/render.js';
+import dom from '/SatisfiedVisual/js/dom.js';
+import state from '/SatisfiedVisual/js/state.js';
+import { recipeData } from '/SatisfiedVisual/js/data/recipes.js';
+import { SOMERSLOOP_SLOTS } from '/SatisfiedVisual/js/constants.js';
+import { updateCardCalculations, updateAllCalculations } from '/SatisfiedVisual/js/core/calculations.js';
+import { showModal } from '/SatisfiedVisual/js/ui/modals.js';
+import { showContextMenu } from '/SatisfiedVisual/js/ui/contextMenu.js';
+import { renderCardSelections, renderSelectionSummary, renderConnections, renderHighlights } from '/SatisfiedVisual/js/ui/render.js';
 
 /**
  * Creates a new card element and its associated data object.
@@ -324,4 +324,5 @@ export function renderPowerCardIO(cardData) {
         outputsHTML = '<p class="text-gray-500 text-xs text-center p-1">None</p>';
     }
     outputsContainer.innerHTML = outputsHTML;
+
 }
