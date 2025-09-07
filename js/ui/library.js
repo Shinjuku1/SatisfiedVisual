@@ -2,10 +2,10 @@
  * This file (js/ui/library.js) handles populating and managing the recipe library sidebar.
  * The logic has been rewritten to ensure all standard and alternate recipes are correctly displayed.
  */
-import dom from '/js/dom.js';
-import state from '/js/state.js';
-import { recipeData } from '/js/data/recipes.js';
-import { renderHighlights } from '/js/ui/render.js';
+import dom from '/SatisfiedVisual/js/dom.js';
+import state from '/SatisfiedVisual/js/state.js';
+import { recipeData } from '/SatisfiedVisual/js/data/recipes.js';
+import { renderHighlights } from '/SatisfiedVisual/js/ui/render.js';
 
 /**
  * Populates the recipe library with all available recipes, grouped by building.
@@ -160,4 +160,5 @@ export function initializeFilter() {
             }
         });
     });
+
 }
