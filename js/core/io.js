@@ -3,13 +3,13 @@
  * including saving, loading, importing, exporting, and copy/paste functionality.
  * It has been updated to save and load the user's unlocked recipes.
  */
-import dom from '/js/dom.js';
-import state from '/js/state.js';
-import { recipeData } from '/js/data/recipes.js';
-import { screenToWorld } from '/js/utils.js';
-import { createCard, deleteCards } from '/js/core/card.js';
-import { updateAllCalculations } from '/js/core/calculations.js';
-import { renderCardSelections } from '/js/ui/render.js';
+import dom from '/SatisfiedVisual/js/dom.js';
+import state from '/SatisfiedVisual/js/state.js';
+import { recipeData } from '/SatisfiedVisual/js/data/recipes.js';
+import { screenToWorld } from '/SatisfiedVisual/js/utils.js';
+import { createCard, deleteCards } from '/SatisfiedVisual/js/core/card.js';
+import { updateAllCalculations } from '/SatisfiedVisual/js/core/calculations.js';
+import { renderCardSelections } from '/SatisfiedVisual/js/ui/render.js';
 
 const AUTOSAVE_KEY = 'satisfactoryPlannerAutosaveV14';
 
@@ -204,4 +204,5 @@ export function pasteSelection(e) {
         document.addEventListener('mousedown', placePastedCards, { once: true });
         document.addEventListener('keydown', handleEscape);
     }, 0);
+
 }
