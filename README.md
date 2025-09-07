@@ -43,5 +43,4 @@ Tailwind CSS
 
 Support the Project
 If you find this tool useful, please consider supporting its development!
-
-<a href="https://buymeacoffee.com/shinjuku1">
+https://buymeacoffee.com/shinjuku1
