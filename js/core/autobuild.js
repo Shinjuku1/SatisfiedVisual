@@ -3,12 +3,12 @@
  * This is an iterative, multi-pass algorithm that repeatedly scans the entire factory for deficits,
  * plans a solution, and builds machines until the factory is satisfied.
  */
-import state from '/js/state.js';
-import { recipeData } from '/js/data/recipes.js';
-import { createCard } from '/js/core/card.js';
-import { groupedArrangeLayout } from '/js/core/layout.js'; // <-- FIX: Import the correct function
-import { updateAllCalculations } from '/js/core/calculations.js';
-import { autoBalanceChain } from '/js/core/balancer.js';
+import state from '/SatisfiedVisual/js/state.js';
+import { recipeData } from '/SatisfiedVisual/js/data/recipes.js';
+import { createCard } from '/SatisfiedVisual/js/core/card.js';
+import { groupedArrangeLayout } from '/SatisfiedVisual/js/core/layout.js'; // <-- FIX: Import the correct function
+import { updateAllCalculations } from '/SatisfiedVisual/js/core/calculations.js';
+import { autoBalanceChain } from '/SatisfiedVisual/js/core/balancer.js';
 
 // --- Helper Functions ---
 
@@ -190,4 +190,5 @@ export function autoBuildInputsForCard(targetCard, options) {
     // --- FINALIZATION ---
     groupedArrangeLayout(targetCard); // <-- FIX: Call the correct existing function
     autoBalanceChain(targetCard); 
+
 }
