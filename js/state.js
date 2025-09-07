@@ -2,7 +2,7 @@
  * This file (js/state.js) defines the central state object that holds all the dynamic
  * data for the application. It has been updated to unlock all alternate recipes by default.
  */
-import { recipeData } from '/js/data/recipes.js';
+import { recipeData } from '/SatisfiedVisual/js/data/recipes.js';
 
 /**
  * Scans the recipe data and returns a Set containing the keys for all alternate recipes.
@@ -48,5 +48,6 @@ const state = {
     unlockedRecipes: getDefaultUnlockedRecipes(),
     highlightedRecipeKey: null,
 };
+
 
 export default state;
