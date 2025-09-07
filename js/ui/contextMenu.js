@@ -6,7 +6,7 @@ import dom from '/SatisfiedVisual/js/dom.js';
 import state from '/SatisfiedVisual/js/state.js';
 import { createCard, deleteCards } from '/SatisfiedVisual/js/core/card.js';
 import { arrangeConnectedLayout, groupedArrangeLayout } from '/SatisfiedVisual/js/core/layout.js';
-import { autoBuildInputsForCard } from '/SatisfiedVisual/js/core/autoBuild.js';
+import { autoBuildInputsForCard } from '/SatisfiedVisual/js/core/autobuild.js';
 import { showModal, showAutoBuildOptionsModal } from '/SatisfiedVisual/js/ui/modals.js';
 import { autoBalanceChain } from '/SatisfiedVisual/js/core/balancer.js';
 
@@ -89,3 +89,4 @@ export function showContextMenu(e, cardData) {
     setTimeout(() => document.addEventListener('click', closeMenu, { once: true }), 0);
 
 }
+
