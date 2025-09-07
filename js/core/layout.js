@@ -2,8 +2,8 @@
  * This file (js/core/layout.js) contains the logic for the "Arrange Connected" feature,
  * including the new, more advanced grouped arrangement for complex factories.
  */
-import state from '/js/state.js';
-import { updateAllCalculations } from '/js/core/calculations.js';
+import state from '/SatisfiedVisual/js/state.js';
+import { updateAllCalculations } from '/SatisfiedVisual/js/core/calculations.js';
 
 // --- Main Layout Functions ---
 
@@ -207,4 +207,5 @@ function positionColumn(levelMap, anchorPos, colWidth, rowHeight) {
             }
         });
     }
+
 }
