@@ -2,13 +2,13 @@
  * This file (js/ui/contextMenu.js) handles the creation and event handling
  * for the right-click context menu on cards.
  */
-import dom from '/js/dom.js';
-import state from '/js/state.js';
-import { createCard, deleteCards } from '/js/core/card.js';
-import { arrangeConnectedLayout, groupedArrangeLayout } from '/js/core/layout.js';
-import { autoBuildInputsForCard } from '/js/core/autoBuild.js';
-import { showModal, showAutoBuildOptionsModal } from '/js/ui/modals.js';
-import { autoBalanceChain } from '/js/core/balancer.js';
+import dom from '/SatisfiedVisual/js/dom.js';
+import state from '/SatisfiedVisual/js/state.js';
+import { createCard, deleteCards } from '/SatisfiedVisual/js/core/card.js';
+import { arrangeConnectedLayout, groupedArrangeLayout } from '/SatisfiedVisual/js/core/layout.js';
+import { autoBuildInputsForCard } from '/SatisfiedVisual/js/core/autoBuild.js';
+import { showModal, showAutoBuildOptionsModal } from '/SatisfiedVisual/js/ui/modals.js';
+import { autoBalanceChain } from '/SatisfiedVisual/js/core/balancer.js';
 
 /**
  * Creates and displays a context menu at the specified event coordinates.
@@ -87,4 +87,5 @@ export function showContextMenu(e, cardData) {
     }
 
     setTimeout(() => document.addEventListener('click', closeMenu, { once: true }), 0);
+
 }
