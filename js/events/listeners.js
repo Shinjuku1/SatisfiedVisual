@@ -1,15 +1,15 @@
 /**
  * This file (js/events/listeners.js) sets up all event listeners for the application and defines their handlers.
  */
-import dom from '/js/dom.js';
-import state from '/js/state.js';
-import { recipeData } from '/js/data/recipes.js';
-import { screenToWorld, getNodeWorldPosition } from '/js/utils.js';
-import { renderViewport, renderConnections, renderCardSelections, renderSelectionSummary } from '/js/ui/render.js';
-import { updateAllCalculations, calculateAndRenderNetworkStatus } from '/js/core/calculations.js';
-import { createCard, deleteCards } from '/js/core/card.js';
-import { saveState, loadState, copySelection, cutSelection, pasteSelection } from '/js/core/io.js';
-import { showSummaryModal, showRecipeBookModal } from '/js/ui/modals.js'; // <-- Import showRecipeBookModal
+import dom from '/SatisfiedVisual/js/dom.js';
+import state from '/SatisfiedVisual/js/state.js';
+import { recipeData } from '/SatisfiedVisual/js/data/recipes.js';
+import { screenToWorld, getNodeWorldPosition } from '/SatisfiedVisual/js/utils.js';
+import { renderViewport, renderConnections, renderCardSelections, renderSelectionSummary } from '/SatisfiedVisual/js/ui/render.js';
+import { updateAllCalculations, calculateAndRenderNetworkStatus } from '/SatisfiedVisual/js/core/calculations.js';
+import { createCard, deleteCards } from '/SatisfiedVisual/js/core/card.js';
+import { saveState, loadState, copySelection, cutSelection, pasteSelection } from '/SatisfiedVisual/js/core/io.js';
+import { showSummaryModal, showRecipeBookModal } from '/SatisfiedVisual/js/ui/modals.js'; // <-- Import showRecipeBookModal
 
 let lastMousePos = { x: 0, y: 0 };
 
@@ -351,4 +351,5 @@ function handleSelectionBoxEnd(e) {
         renderSelectionSummary();
         renderConnections();
     }
+
 }
