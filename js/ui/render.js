@@ -3,9 +3,9 @@
  * to reflect the current state of the application. It has been updated to calculate
  * and display the total factory demand on extractor cards.
  */
-import dom from '/js/dom.js';
-import state from '/js/state.js';
-import { getNodeWorldPosition } from '/js/utils.js';
+import dom from '/SatisfiedVisual/js/dom.js';
+import state from '/SatisfiedVisual/js/state.js';
+import { getNodeWorldPosition } from '/SatisfiedVisual/js/utils.js';
 
 /**
  * Renders the totals in the header and updates the demand display on extractor cards.
@@ -190,4 +190,5 @@ export function renderHighlights() {
         });
     }
     renderConnections();
+
 }
