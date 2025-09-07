@@ -3,12 +3,12 @@
  * all modal windows in the application. The Factory Summary has been completely
  * redesigned into a multi-tab dashboard for better visual appeal and more detailed information.
  */
-import dom from '/js/dom.js';
-import state from '/js/state.js';
-import { recipeData } from '/js/data/recipes.js';
-import { SOMERSLOOP_SLOTS } from '/js/constants.js';
-import { updateAllCalculations } from '/js/core/calculations.js';
-import { autoBuildInputsForCard } from '/js/core/autoBuild.js';
+import dom from '/SatisfiedVisual/js/dom.js';
+import state from '/SatisfiedVisual/js/state.js';
+import { recipeData } from '/SatisfiedVisual/js/data/recipes.js';
+import { SOMERSLOOP_SLOTS } from '/SatisfiedVisual/js/constants.js';
+import { updateAllCalculations } from '/SatisfiedVisual/js/core/calculations.js';
+import { autoBuildInputsForCard } from '/SatisfiedVisual/js/core/autoBuild.js';
 
 // --- Recipe Book Modal ---
 export function showRecipeBookModal() {
@@ -531,4 +531,5 @@ export function showAutoBuildOptionsModal(onConfirm) {
 
     modal.querySelector('#cancel-autobuild').addEventListener('click', closeModal);
     modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+
 }
