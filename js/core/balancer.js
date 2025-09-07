@@ -3,9 +3,9 @@
  * It uses a single, robust backward pass (from consumers to producers) to perfectly balance
  * a production line by adjusting building counts and clock speeds to meet aggregated demand.
  */
-import state from '/js/state.js';
-import { updateAllCalculations } from '/js/core/calculations.js';
-import { SOMERSLOOP_SLOTS } from '/js/constants.js';
+import state from '/SatisfiedVisual/js/state.js';
+import { updateAllCalculations } from '/SatisfiedVisual/js/core/calculations.js';
+import { SOMERSLOOP_SLOTS } from '/SatisfiedVisual/js/constants.js';
 
 /**
  * Balances a connected production chain by adjusting building counts and clock speeds.
@@ -147,4 +147,5 @@ export function autoBalanceChain(startCard) {
 
     // 6. Trigger a full recalculation to update all visuals.
     updateAllCalculations();
+
 }
