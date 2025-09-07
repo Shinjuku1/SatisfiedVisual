@@ -3,9 +3,9 @@
  * calculations in the planner, including I/O rates, power, and network status.
  * The power calculation formula has been corrected to use the proper exponents.
  */
-import state from '/js/state.js';
-import { SOMERSLOOP_SLOTS } from '/js/constants.js';
-import { renderGlobalTotals, renderSelectionSummary, renderConnections } from '/js/ui/render.js';
+import state from '/SatisfiedVisual/js/state.js';
+import { SOMERSLOOP_SLOTS } from '/SatisfiedVisual/js/constants.js';
+import { renderGlobalTotals, renderSelectionSummary, renderConnections } from '/SatisfiedVisual/js/ui/render.js';
 
 /**
  * Updates all cards, totals, and network statuses. The main calculation loop.
@@ -172,4 +172,5 @@ export function calculateAndRenderNetworkStatus() {
     });
 
     renderConnections();
+
 }
