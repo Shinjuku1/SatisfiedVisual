@@ -8,7 +8,7 @@ import state from '/SatisfiedVisual/js/state.js';
 import { recipeData } from '/SatisfiedVisual/js/data/recipes.js';
 import { SOMERSLOOP_SLOTS } from '/SatisfiedVisual/js/constants.js';
 import { updateAllCalculations } from '/SatisfiedVisual/js/core/calculations.js';
-import { autoBuildInputsForCard } from '/SatisfiedVisual/js/core/autoBuild.js';
+import { autoBuildInputsForCard } from '/SatisfiedVisual/js/core/autobuild.js';
 
 // --- Recipe Book Modal ---
 export function showRecipeBookModal() {
@@ -533,4 +533,5 @@ export function showAutoBuildOptionsModal(onConfirm) {
     modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
 
 }
+
 
