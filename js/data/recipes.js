@@ -120,7 +120,7 @@ export const recipeData = {
       {name: 'Smart Plating', inputs: {'Reinforced Iron Plate': 2, 'Rotor': 2}, outputs: {'Smart Plating': 2}},
       {name: 'Stator', inputs: {'Steel Pipe': 15, 'Wire': 40}, outputs: {'Stator': 5}},
       {name: 'Versatile Framework', inputs: {'Modular Frame': 2.5, 'Steel Beam': 30}, outputs: {'Versatile Framework': 5}}
-    ],
+   ],
     'Manufacturer': [
       {name: 'Adaptive Control Unit', inputs: {'Automated Wiring': 5, 'Circuit Board': 5, 'Heavy Modular Frame': 1, 'Computer': 2}, outputs: {'Adaptive Control Unit': 1}},
       {name: 'Ballistic Warp Drive', inputs: {'Thermal Propulsion Rocket': 1, 'Singularity Cell': 5, 'Superposition Oscillator': 2, 'Dark Matter Crystal': 40}, outputs: {'Ballistic Warp Drive': 1}},
@@ -345,4 +345,5 @@ export const recipeData = {
   }
 
 };
+
 
