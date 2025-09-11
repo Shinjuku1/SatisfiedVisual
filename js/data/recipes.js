@@ -99,6 +99,7 @@ export const recipeData = {
       {name: 'Black Powder', inputs: {'Coal': 15, 'Sulfur': 15}, outputs: {'Black Powder': 30}},
       {name: 'Circuit Board', inputs: {'Copper Sheet': 15, 'Plastic': 30}, outputs: {'Circuit Board': 7.5}},
       {name: 'Cluster Nobelisk', inputs: {'Nobelisk': 7.5, 'Smokeless Powder': 10}, outputs: {'Cluster Nobelisk': 2.5}},
+      {name: 'Compacted Coal', inputs: {'Coal': 25, 'Sulfur': 25}, outputs: {'Compacted Coal': 12.5}}
       {name: 'Electromagnetic Control Rod', inputs: {'Stator': 6, 'AI Limiter': 4}, outputs: {'Electromagnetic Control Rod': 4}},
       {name: 'Encased Industrial Beam', inputs: {'Steel Beam': 18, 'Concrete': 36}, outputs: {'Encased Industrial Beam': 6}},
       {name: 'Encased Plutonium Cell', inputs: {'Plutonium Pellet': 10, 'Concrete': 20}, outputs: {'Encased Plutonium Cell': 5}},
@@ -342,4 +343,5 @@ export const recipeData = {
       {name: 'Ficsonium Fuel Rod', inputs: {'Ficsonium Fuel Rod': 1, 'Water': 240}, outputs: {}}
     ]
   }
+
 };
