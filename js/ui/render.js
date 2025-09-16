@@ -1,40 +1,57 @@
 /**
  * This file (js/ui/render.js) contains all functions that directly manipulate the DOM
- * to reflect the current state of the application. It has been updated to calculate
- * and display the total factory demand on extractor cards.
+ * to reflect the current state of the application. The logic for calculating raw inputs
+ * has been updated to show gross consumption of extracted materials.
  */
 import dom from '/SatisfiedVisual/js/dom.js';
 import state from '/SatisfiedVisual/js/state.js';
+import { recipeData } from '/SatisfiedVisual/js/data/recipes.js';
 import { getNodeWorldPosition } from '/SatisfiedVisual/js/utils.js';
+
+// Helper to identify all possible raw resources from extractor buildings.
+const RAW_RESOURCES = new Set();
+recipeData.buildings.forEach(building => {
+    if (building.category === 'Extraction') {
+        const recipes = recipeData.recipes[building.name] || [];
+        recipes.forEach(recipe => {
+            Object.keys(recipe.outputs).forEach(outputName => {
+                RAW_RESOURCES.add(outputName);
+            });
+        });
+    }
+});
 
 /**
  * Renders the totals in the header and updates the demand display on extractor cards.
  */
 export function renderGlobalTotals() {
     const balance = {};
+    const totalConsumption = {}; // Track gross consumption for all items
     let baseGridPower = 0;
     const alienAugmenters = [];
 
-    // First pass: calculate the balance of all items.
+    // First pass: calculate the balance and total consumption of all items.
     state.placedCards.forEach(card => {
         if (card.building === 'Alien Power Augmenter') {
             alienAugmenters.push(card); return;
         }
         if (card.buildings > 0) {
             Object.entries(card.outputs).forEach(([name, val]) => balance[name] = (balance[name] || 0) + val);
-            Object.entries(card.inputs).forEach(([name, val]) => balance[name] = (balance[name] || 0) - val);
+            Object.entries(card.inputs).forEach(([name, val]) => {
+                balance[name] = (balance[name] || 0) - val;
+                totalConsumption[name] = (totalConsumption[name] || 0) + val;
+            });
             baseGridPower += card.power || 0;
         }
     });
 
-    // Update the UI for extractor cards with the total demand.
+    // Update the UI for extractor cards with the total factory demand.
     state.placedCards.forEach(card => {
         const buildingInfo = state.buildingsMap.get(card.building);
         if (buildingInfo && buildingInfo.category === 'Extraction') {
             const outputName = Object.keys(card.recipe.outputs)[0];
             if (outputName) {
-                // The total demand is the absolute value of the negative balance.
-                const totalDemand = Math.abs(balance[outputName] - card.outputs[outputName] || 0);
+                const totalDemand = totalConsumption[outputName] || 0;
                 const demandEl = card.element.querySelector('[data-value="total-demand"]');
                 if (demandEl) {
                     demandEl.textContent = totalDemand.toFixed(2);
@@ -43,7 +60,6 @@ export function renderGlobalTotals() {
         }
     });
 
-
     let flatPowerAdded = 0; let boostMultiplier = 0;
     alienAugmenters.forEach(augmenter => {
         flatPowerAdded += 500 * augmenter.buildings;
@@ -51,10 +67,14 @@ export function renderGlobalTotals() {
     });
     const totalPower = (baseGridPower + flatPowerAdded) * (1 + boostMultiplier);
 
-    const rawInputs = Object.entries(balance).filter(([, val]) => val < -0.001).sort();
+    // MODIFIED: Raw inputs are now the total consumption of items defined as raw resources.
+    const rawInputs = Object.entries(totalConsumption)
+        .filter(([name]) => RAW_RESOURCES.has(name) && totalConsumption[name] > 0.001)
+        .sort();
+
     const finalOutputs = Object.entries(balance).filter(([, val]) => val > 0.001).sort();
 
-    dom.totalInputs.innerHTML = rawInputs.length ? rawInputs.map(([name, val]) => `<div class="flex justify-between"><span class="text-gray-400 truncate">${name}</span><span class="font-bold">${Math.abs(val).toFixed(2)}</span></div>`).join('') : '<p class="text-gray-500 col-span-full">All inputs satisfied.</p>';
+    dom.totalInputs.innerHTML = rawInputs.length ? rawInputs.map(([name, val]) => `<div class="flex justify-between"><span class="text-gray-400 truncate">${name}</span><span class="font-bold">${Math.abs(val).toFixed(2)}</span></div>`).join('') : '<p class="text-gray-500 col-span-full">No raw inputs required.</p>';
     dom.totalOutputs.innerHTML = finalOutputs.length ? finalOutputs.map(([name, val]) => `<div class="flex justify-between"><span class="text-gray-400 truncate">${name}</span><span class="font-bold">${val.toFixed(2)}</span></div>`).join('') : '<p class="text-gray-500 col-span-full">All outputs consumed.</p>';
     dom.totalPower.innerHTML = `${totalPower.toFixed(2)} <span class="text-base text-cyan-400">MW</span>`;
 }
@@ -190,5 +210,4 @@ export function renderHighlights() {
         });
     }
     renderConnections();
-
 }
