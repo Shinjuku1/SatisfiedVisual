@@ -6,6 +6,7 @@
 import state from '/SatisfiedVisual/js/state.js';
 import { SOMERSLOOP_SLOTS } from '/SatisfiedVisual/js/constants.js';
 import { renderGlobalTotals, renderSelectionSummary, renderConnections } from '/SatisfiedVisual/js/ui/render.js';
+import { round } from '/SatisfiedVisual/js/utils.js';
 
 /**
  * Updates all cards, totals, and network statuses. The main calculation loop.
@@ -33,9 +34,9 @@ export function updateCardCalculations(cardData) {
     cardData.inputs = {};
     Object.entries(recipe.inputs).forEach(([name, rate]) => {
         const total = rate * clockSpeedMultiplier * buildings;
-        cardData.inputs[name] = total;
+        cardData.inputs[name] = round(total, 3); // Use 3-decimal precision for storage
         const inputEl = element.querySelector(`[data-input-name="${name}"] .io-rate`);
-        if (inputEl) inputEl.textContent = total.toFixed(2);
+        if (inputEl) inputEl.textContent = cardData.inputs[name].toFixed(2);
     });
 
     // Update Outputs
@@ -44,9 +45,9 @@ export function updateCardCalculations(cardData) {
     cardData.outputs = {};
     Object.entries(recipe.outputs).forEach(([name, rate]) => {
         const total = rate * clockSpeedMultiplier * outputMultiplier * buildings;
-        cardData.outputs[name] = total;
+        cardData.outputs[name] = round(total, 3); // Use 3-decimal precision for storage
         const outputEl = element.querySelector(`[data-output-name="${name}"] .io-rate`);
-        if (outputEl) outputEl.textContent = total.toFixed(2);
+        if (outputEl) outputEl.textContent = cardData.outputs[name].toFixed(2);
     });
 
     // --- DEFINITIVE POWER CALCULATION LOGIC ---
@@ -58,7 +59,7 @@ export function updateCardCalculations(cardData) {
         // The in-game overclock exponent for generators is ~1.321928
         const powerExponent = 1.321928;
         const overclockPowerMultiplier = Math.pow(clockSpeedMultiplier, powerExponent);
-        cardData.power = Math.abs(basePower) * overclockPowerMultiplier * buildings;
+        cardData.power = round(Math.abs(basePower) * overclockPowerMultiplier * buildings, 3);
     } else if (basePower < 0) {
         // Consumers use power. The value is negative.
         // The in-game overclock exponent for consumers is 1.6
@@ -66,7 +67,7 @@ export function updateCardCalculations(cardData) {
         const overclockPowerMultiplier = Math.pow(clockSpeedMultiplier, powerExponent);
         const amplificationPowerMultiplier = Math.pow(outputMultiplier, 2);
         const totalConsumed = Math.abs(basePower) * overclockPowerMultiplier * amplificationPowerMultiplier * buildings;
-        cardData.power = -totalConsumed; // Ensure the final value is negative
+        cardData.power = round(-totalConsumed, 3); // Ensure the final value is negative
     } else {
         cardData.power = 0;
     }
@@ -116,7 +117,7 @@ export function calculateAndRenderNetworkStatus() {
                         if(sourceOutputs) supplied += sourceOutputs[conn.from.itemName] || 0;
                     }
                 });
-                if (supplied < required - 0.01) hasDeficit = true;
+                if (supplied < required - 0.001) hasDeficit = true; // Adjusted threshold for precision
             });
 
             if (hasDeficit) {
@@ -151,7 +152,7 @@ export function calculateAndRenderNetworkStatus() {
         if (sourceEffectiveOutputs) {
             const supply = sourceEffectiveOutputs[conn.from.itemName] || 0;
             const demand = outputDemands.get(outputKey) || 0;
-            if (supply < demand - 0.01) conn.isDeficit = true;
+            if (supply < demand - 0.001) conn.isDeficit = true; // Adjusted threshold for precision
         }
     });
 

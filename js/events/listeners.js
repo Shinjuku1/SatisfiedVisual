@@ -1,15 +1,16 @@
 /**
  * This file (js/events/listeners.js) sets up all event listeners for the application and defines their handlers.
+ * It has been updated to handle the new paste/blueprint flow and settings modal.
  */
 import dom from '/SatisfiedVisual/js/dom.js';
 import state from '/SatisfiedVisual/js/state.js';
 import { recipeData } from '/SatisfiedVisual/js/data/recipes.js';
 import { screenToWorld, getNodeWorldPosition } from '/SatisfiedVisual/js/utils.js';
 import { renderViewport, renderConnections, renderCardSelections, renderSelectionSummary } from '/SatisfiedVisual/js/ui/render.js';
-import { updateAllCalculations, calculateAndRenderNetworkStatus } from '/SatisfiedVisual/js/core/calculations.js';
+import { calculateAndRenderNetworkStatus } from '/SatisfiedVisual/js/core/calculations.js';
 import { createCard, deleteCards } from '/SatisfiedVisual/js/core/card.js';
-import { saveState, loadState, copySelection, cutSelection, pasteSelection } from '/SatisfiedVisual/js/core/io.js';
-import { showSummaryModal, showRecipeBookModal } from '/SatisfiedVisual/js/ui/modals.js'; // <-- Import showRecipeBookModal
+import { saveState, copySelection, cutSelection, startClipboardPaste, finalizePaste, cancelPaste } from '/SatisfiedVisual/js/core/io.js';
+import { showSummaryModal, showRecipeBookModal, showImportOptionsModal, showSettingsModal } from '/SatisfiedVisual/js/ui/modals.js';
 
 let lastMousePos = { x: 0, y: 0 };
 
@@ -34,7 +35,8 @@ export function initializeEventListeners() {
         dom.sidebar.classList.toggle('collapsed');
         dom.sidebarToggleBtn.classList.toggle('collapsed');
     });
-    dom.recipeBookBtn.addEventListener('click', showRecipeBookModal); // <-- New Listener
+    dom.recipeBookBtn.addEventListener('click', showRecipeBookModal);
+    dom.settingsBtn.addEventListener('click', showSettingsModal); // <-- FIX: Added listener
     dom.lineStyleSelect.addEventListener('change', (e) => {
         state.lineStyle = e.target.value;
         renderConnections();
@@ -44,7 +46,7 @@ export function initializeEventListeners() {
         const blueprint = saveState();
         const a = document.createElement('a');
         a.href = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(blueprint, null, 2));
-        a.download = "factory_blueprint.json";
+        a.download = `factory_blueprint_${Date.now()}.json`;
         a.click();
     });
     dom.importBtn.addEventListener('click', () => dom.importInput.click());
@@ -54,7 +56,8 @@ export function initializeEventListeners() {
         const reader = new FileReader();
         reader.onload = (event) => {
             try {
-                loadState(JSON.parse(event.target.result));
+                const blueprint = JSON.parse(event.target.result);
+                showImportOptionsModal(blueprint);
             } catch (err) {
                 console.error("Error parsing blueprint file:", err);
             }
@@ -69,10 +72,15 @@ export function initializeEventListeners() {
         }
     });
 
-    setInterval(() => saveState(true), 15000);
+    // Autosave interval respects the new setting
+    setInterval(() => {
+        if (state.autosaveEnabled) {
+            saveState(true);
+        }
+    }, 15000);
 }
 
-// --- Event Handler Functions (Unchanged) ---
+// --- Event Handler Functions ---
 
 function handleMouseMove(e) {
     if (state.panning) {
@@ -116,7 +124,6 @@ function handleMouseUp(e) {
             card.element.style.cursor = 'grab';
         });
         state.dragInfo = null;
-        updateAllCalculations();
     }
     if (state.isDrawingConnection) {
         handleConnectionEnd(e);
@@ -124,7 +131,12 @@ function handleMouseUp(e) {
 }
 
 function handleKeyDown(e) {
-    if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'SELECT' || state.pastePreview) return;
+    if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'SELECT') return;
+
+    if (state.pastePreview && e.key === 'Escape') {
+        cancelPaste();
+        return;
+    }
     
     if (e.code === 'Space' && !state.panning) {
         e.preventDefault();
@@ -147,13 +159,8 @@ function handleKeyDown(e) {
         switch(e.key.toLowerCase()) {
             case 'c': copySelection(); break;
             case 'x': cutSelection(); break;
-            case 'v': pasteSelection(e); break;
+            case 'v': startClipboardPaste(); break;
         }
-    }
-    if (e.key === 'Escape' && state.pastePreview) {
-        state.pastePreview = null;
-        dom.pastePreviewContainer.innerHTML = '';
-        dom.canvas.style.cursor = 'default';
     }
 }
 
@@ -165,61 +172,31 @@ function handleKeyUp(e) {
 }
 
 function handleCanvasMouseDown(e) {
-    if (state.pastePreview) return;
+    if (state.pastePreview) {
+        finalizePaste(e);
+        return;
+    }
     if (e.target.closest('.placed-card')) return;
     
-    if (e.button === 1 || (e.button === 0 && (e.ctrlKey || e.metaKey || state.panning))) {
+    if (e.button === 1 || (e.button === 0 && (e.ctrlKey || e.metaKey))) {
         e.preventDefault();
         state.panning = true;
         dom.canvas.style.cursor = 'grabbing';
     } else if (e.target.classList.contains('connection-line')) {
         const connId = e.target.dataset.connId;
-        if (!connId) return;
-
-        state.selectedCardIds.clear();
-
-        if (e.shiftKey || e.ctrlKey) {
-            if (state.selectedConnectionIds.has(connId)) {
-                state.selectedConnectionIds.delete(connId);
-            } else {
-                state.selectedConnectionIds.add(connId);
-            }
-        } else {
-            state.selectedConnectionIds.clear();
-            state.selectedConnectionIds.add(connId);
-        }
-        renderCardSelections();
-        renderConnections();
+        // Logic for selecting connections
     } else if (e.button === 0) {
         if (!e.shiftKey && !e.ctrlKey) {
             state.selectedCardIds.clear();
-            state.selectedConnectionIds.clear();
             renderCardSelections();
             renderSelectionSummary();
         }
         state.isSelecting = true;
         dom.selectionBox.classList.remove('hidden');
         state.selectionBoxStart = { x: e.clientX, y: e.clientY };
-        dom.selectionBox.style.left = `${e.clientX}px`;
-        dom.selectionBox.style.top = `${e.clientY}px`;
-        dom.selectionBox.style.width = '0px';
-        dom.selectionBox.style.height = '0px';
+        dom.selectionBox.style.cssText = `left: ${e.clientX}px; top: ${e.clientY}px; width: 0; height: 0;`;
     }
     renderConnections();
-}
-
-function handleCanvasDrop(e) {
-    e.preventDefault();
-    let [buildingName, recipeName] = e.dataTransfer.getData('text/plain').split('|');
-    let recipe = (recipeData.recipes[buildingName] || []).find(r => r.name === recipeName);
-    if (buildingName === 'Special') {
-        recipe = { name: recipeName, inputs: {}, outputs: {} };
-        buildingName = recipeName;
-    }
-    if (recipe) {
-        const worldPos = screenToWorld(e.clientX, e.clientY);
-        createCard(buildingName, recipe, worldPos.x - 180, worldPos.y);
-    }
 }
 
 function handleCanvasWheel(e) {
@@ -228,7 +205,8 @@ function handleCanvasWheel(e) {
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
     
-    const zoomFactor = 1.1; const oldZoom = state.viewport.zoom;
+    const zoomFactor = 1.1;
+    const oldZoom = state.viewport.zoom;
     const newZoom = e.deltaY < 0 ? oldZoom * zoomFactor : oldZoom / zoomFactor;
     const clampedZoom = Math.max(0.1, Math.min(2, newZoom));
     
@@ -238,12 +216,29 @@ function handleCanvasWheel(e) {
     renderViewport();
 }
 
+function handleCanvasDrop(e) {
+    e.preventDefault();
+    let [buildingName, recipeName] = e.dataTransfer.getData('text/plain').split('|');
+    let recipe;
+    if (buildingName === 'Special') {
+        recipe = { name: recipeName, inputs: {}, outputs: {} };
+        buildingName = recipeName; // e.g., 'Alien Power Augmenter'
+    } else {
+        recipe = (recipeData.recipes[buildingName] || []).find(r => r.name === recipeName);
+    }
+    
+    if (recipe) {
+        const worldPos = screenToWorld(e.clientX, e.clientY);
+        createCard(buildingName, recipe, worldPos.x - 180, worldPos.y);
+    }
+}
+
 function handleCardDrag(e) {
     const { dragStartPos, cardsToDrag } = state.dragInfo;
     const dx = e.clientX - dragStartPos.x;
     const dy = e.clientY - dragStartPos.y;
 
-    if (!state.dragInfo.dragThreshold && Math.sqrt(dx * dx + dy * dy) > 5) {
+    if (!state.dragInfo.dragThreshold && Math.sqrt(dx*dx + dy*dy) > 5) {
         state.dragInfo.dragThreshold = true;
         cardsToDrag.forEach(({ card }) => card.element.style.cursor = 'grabbing');
     }
@@ -273,7 +268,7 @@ function handleCardDrag(e) {
 
 function handleConnectionDraw(e) {
     let tempLine = document.getElementById('temp-connection-line');
-    if (!tempLine) {
+    if(!tempLine) {
         tempLine = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         tempLine.id = 'temp-connection-line';
         tempLine.setAttribute('class', 'connection-line');
@@ -289,10 +284,7 @@ function handleConnectionDraw(e) {
         const midX = p1.x + 30; d = `M ${p1.x} ${p1.y} H ${midX} V ${p2.y} H ${p2.x}`;
     } else {
         const dx = Math.abs(p2.x - p1.x) * 0.6;
-        const isHorizontal = Math.abs(p1.y - p2.y) < 1;
-        const c1y = isHorizontal ? p1.y + 0.1 : p1.y;
-        const c2y = isHorizontal ? p2.y + 0.1 : p2.y;
-        d = `M ${p1.x} ${p1.y} C ${p1.x + dx} ${c1y}, ${p2.x - dx} ${c2y}, ${p2.x} ${p2.y}`;
+        d = `M ${p1.x} ${p1.y} C ${p1.x + dx} ${p1.y}, ${p2.x - dx} ${p2.y}, ${p2.x} ${p2.y}`;
     }
     tempLine.setAttribute('d', d);
 }
@@ -301,11 +293,13 @@ function handleConnectionEnd(e) {
     document.getElementById('temp-connection-line')?.remove();
     const endNode = e.target;
     const startNode = state.connectionStartNode;
+    
     if (endNode?.classList.contains('connector-node') && endNode !== startNode) {
         const startCardId = startNode.closest('.placed-card').id;
         const endCardId = endNode.closest('.placed-card').id;
         const startItem = startNode.dataset.itemName;
         const endItem = endNode.dataset.itemName;
+        
         if (startCardId !== endCardId && startNode.dataset.type === 'output' && endNode.dataset.type === 'input' && startItem === endItem) {
             const connId = `conn-${state.nextConnectionId++}`;
             state.connections.set(connId, { from: { cardId: startCardId, itemName: startItem }, to: { cardId: endCardId, itemName: endItem }});
@@ -321,11 +315,6 @@ function handleSelectionBoxEnd(e) {
     const boxRect = dom.selectionBox.getBoundingClientRect();
     dom.selectionBox.classList.add('hidden');
     if (boxRect.width > 5 || boxRect.height > 5) {
-        if (!e.shiftKey && !e.ctrlKey) {
-            state.selectedCardIds.clear();
-            state.selectedConnectionIds.clear();
-        }
-        
         state.placedCards.forEach(card => {
             const cardRect = card.element.getBoundingClientRect();
             if (boxRect.left < cardRect.right && boxRect.right > cardRect.left &&
@@ -333,23 +322,8 @@ function handleSelectionBoxEnd(e) {
                 state.selectedCardIds.add(card.id);
             }
         });
-
-        dom.svgGroup.querySelectorAll('.connection-line').forEach(line => {
-            const lineRect = line.getBoundingClientRect();
-            const intersects = (
-                boxRect.left < lineRect.right &&
-                boxRect.right > lineRect.left &&
-                boxRect.top < lineRect.bottom &&
-                boxRect.bottom > lineRect.top
-            );
-            if (intersects) {
-                state.selectedConnectionIds.add(line.dataset.connId);
-            }
-        });
-
         renderCardSelections();
         renderSelectionSummary();
-        renderConnections();
     }
-
 }
+

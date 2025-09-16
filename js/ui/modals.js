@@ -1,7 +1,7 @@
 /**
  * This file (js/ui/modals.js) contains the logic for creating and displaying
- * all modal windows in the application. The Factory Summary has been completely
- * redesigned into a multi-tab dashboard for better visual appeal and more detailed information.
+ * all modal windows in the application. It has been updated with new modals
+ * for blueprint import options and application settings.
  */
 import dom from '/SatisfiedVisual/js/dom.js';
 import state from '/SatisfiedVisual/js/state.js';
@@ -9,6 +9,7 @@ import { recipeData } from '/SatisfiedVisual/js/data/recipes.js';
 import { SOMERSLOOP_SLOTS } from '/SatisfiedVisual/js/constants.js';
 import { updateAllCalculations } from '/SatisfiedVisual/js/core/calculations.js';
 import { autoBuildInputsForCard } from '/SatisfiedVisual/js/core/autobuild.js';
+import { loadState, startBlueprintPaste } from '/SatisfiedVisual/js/core/io.js';
 
 // --- Recipe Book Modal ---
 export function showRecipeBookModal() {
@@ -98,17 +99,35 @@ export function showRecipeBookModal() {
 }
 
 
-// --- Card Configuration Modal (REVISED) ---
+// --- Card Configuration Modal ---
 export function showModal(cardData) {
     dom.modalContainer.innerHTML = '';
     const modal = document.createElement('div');
     modal.className = 'modal-backdrop';
 
     if (cardData.building === 'Alien Power Augmenter') {
-        // This logic is correct and remains unchanged.
-        modal.innerHTML = `...`; // Omitted for brevity
+        modal.innerHTML = `
+            <div class="bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6">
+                 <h2 class="text-xl font-bold mb-4 text-white">Configure: Alien Power Augmenter</h2>
+                 <div class="space-y-4 text-sm">
+                      <label for="is-fueled-toggle" class="flex items-center justify-between p-3 rounded-md bg-gray-900/50 cursor-pointer">
+                           <span class="font-medium text-white">Is Fueled (+30% Power Boost)</span>
+                           <input type="checkbox" id="is-fueled-toggle" class="h-5 w-5 rounded text-indigo-500 focus:ring-indigo-600" ${cardData.isFueled ? 'checked' : ''}>
+                      </label>
+                 </div>
+                 <button id="close-modal" class="mt-8 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded">Done</button>
+            </div>`;
         dom.modalContainer.appendChild(modal);
-        // Event listeners for Augmenter...
+        
+        const fuelToggle = modal.querySelector('#is-fueled-toggle');
+        fuelToggle.addEventListener('change', () => {
+            cardData.isFueled = fuelToggle.checked;
+            cardData.element.querySelector('[data-stat="fuel-status"]').textContent = cardData.isFueled ? 'FUELED (+30% Boost)' : 'UNFUELED (+10% Boost)';
+            cardData.element.querySelector('[data-stat="fuel-status"]').classList.toggle('text-green-400', cardData.isFueled);
+            cardData.element.querySelector('[data-stat="fuel-status"]').classList.toggle('text-gray-500', !cardData.isFueled);
+            updateAllCalculations();
+        });
+
     } else {
         const totalSlots = SOMERSLOOP_SLOTS[cardData.building] || 0;
         const outputOptions = Object.keys(cardData.recipe.outputs);
@@ -130,11 +149,11 @@ export function showModal(cardData) {
                         <div class="flex justify-between items-center mb-2">
                             <label class="font-medium text-gray-300">Clock Speed</label>
                             <div class="flex items-center gap-2">
-                                <input type="number" value="${cardData.powerShard.toFixed(2)}" step="0.01" class="w-24 bg-gray-700 p-1 rounded text-center border border-gray-600" data-control="clock">
+                                <input type="number" value="${cardData.powerShard.toFixed(3)}" step="0.001" class="w-24 bg-gray-700 p-1 rounded text-center border border-gray-600" data-control="clock">
                                 <span class="text-gray-400" data-value="max-clock">% (Max: 250%)</span>
                             </div>
                         </div>
-                        <input type="range" min="0.1" max="250" value="${cardData.powerShard}" step="0.01" data-control="clock-slider">
+                        <input type="range" min="0.1" max="250" value="${cardData.powerShard}" step="0.001" data-control="clock-slider">
                     </div>
                     <div class="bg-gray-900/50 p-4 rounded-md ${outputOptions.length > 0 ? '' : 'hidden'}">
                         <label class="font-medium text-gray-300">Target Production Rate</label>
@@ -142,7 +161,7 @@ export function showModal(cardData) {
                             <select data-control="target-item" class="flex-1 bg-gray-700 border border-gray-600 rounded p-2 text-white">
                                 ${outputOptions.map(name => `<option value="${name}">${name}</option>`).join('')}
                             </select>
-                            <input type="number" placeholder="Items/min" min="0" step="0.01" class="w-32 bg-gray-700 p-2 rounded text-center border border-gray-600" data-control="target-rate">
+                            <input type="number" placeholder="Items/min" min="0" step="0.001" class="w-32 bg-gray-700 p-2 rounded text-center border border-gray-600" data-control="target-rate">
                         </div>
                     </div>
                     <div class="pt-4 ${totalSlots > 0 ? '' : 'hidden'}">
@@ -184,8 +203,7 @@ export function showModal(cardData) {
             newClock = Math.max(0.1, Math.min(maxClock, newClock));
             cardData.powerShard = newClock;
             
-            // Sync both UI elements from the single source of truth (cardData)
-            controls.clock.value = cardData.powerShard.toFixed(2);
+            controls.clock.value = cardData.powerShard.toFixed(3);
             controls.clockSlider.value = cardData.powerShard;
 
             if (controls.ssSlider) {
@@ -198,7 +216,7 @@ export function showModal(cardData) {
                 const baseRate = cardData.recipe.outputs[targetName] || 0;
                 const ssMultiplier = totalSlots > 0 ? (1 + (cardData.somersloops / totalSlots)) : 1;
                 const newTargetRate = baseRate * cardData.buildings * (cardData.powerShard / 100) * ssMultiplier;
-                controls.targetRate.value = newTargetRate.toFixed(2);
+                controls.targetRate.value = newTargetRate.toFixed(3);
             }
             
             updateAllCalculations();
@@ -214,14 +232,13 @@ export function showModal(cardData) {
             if (baseRate > 0 && cardData.buildings > 0) {
                 const ssMultiplier = totalSlots > 0 ? (1 + (cardData.somersloops / totalSlots)) : 1;
                 const requiredClock = (desiredRate / (baseRate * cardData.buildings * ssMultiplier)) * 100;
-                controls.clock.value = requiredClock.toFixed(2);
+                controls.clock.value = requiredClock.toFixed(3);
                 updateFromUI();
             }
         };
 
-        // --- ROBUST EVENT LISTENERS ---
         controls.clockSlider.addEventListener('input', () => {
-            controls.clock.value = parseFloat(controls.clockSlider.value).toFixed(2);
+            controls.clock.value = parseFloat(controls.clockSlider.value).toFixed(3);
             updateFromUI();
         });
         controls.clock.addEventListener('change', () => {
@@ -230,7 +247,6 @@ export function showModal(cardData) {
         });
         controls.targetRate.addEventListener('change', updateFromTargetRate);
         
-        // Listeners that trigger a standard UI update
         controls.buildings.addEventListener('input', updateFromUI);
         controls.shards.addEventListener('input', updateFromUI);
         if(controls.ssSlider) controls.ssSlider.addEventListener('input', updateFromUI);
@@ -270,7 +286,7 @@ export function showSummaryModal() {
 
         if (card.buildings > 0) {
             Object.entries(card.outputs).forEach(([n, v]) => { production[n] = (production[n] || 0) + v; });
-            Object.entries(card.inputs).forEach(([n, v]) => { consumption[n] = (consumption[n] || 0) + v; });
+            Object.entries(card.inputs).forEach(([n, v]) => { consumption[n] = (consumption[n] || 0) - v; });
             if (card.power < 0) {
                 const c = -card.power;
                 powerConsumption += c;
@@ -292,11 +308,11 @@ export function showSummaryModal() {
     allItems.forEach(item => {
         const p = production[item] || 0;
         const c = consumption[item] || 0;
-        if (c > 0 && p === 0) {
-            rawInputs.push({ name: item, c: c });
+        if (c < 0 && p === 0) {
+            rawInputs.push({ name: item, c: Math.abs(c) });
         }
-        const net = p - c;
-        if (net > 0.01) {
+        const net = p + c;
+        if (net > 0.001) {
             finalOutputs.push({ name: item, p: net });
         }
     });
@@ -355,7 +371,7 @@ export function showSummaryModal() {
     modal.querySelector('#close-modal').addEventListener('click', closeModal);
 }
 
-// --- HTML Generation Helpers for Summary ---
+// --- HTML Generation Helpers for Summary (Unchanged) ---
 function createPowerOverviewHTML(prod, cons) {
     const net = prod - cons;
     return `
@@ -365,9 +381,9 @@ function createPowerOverviewHTML(prod, cons) {
             Power Overview
         </h3>
         <div class="text-sm space-y-2">
-            <p class="flex justify-between"><span>Consumption:</span> <span class="font-bold text-white">${cons.toFixed(2)} MW</span></p>
-            <p class="flex justify-between"><span>Production:</span> <span class="font-bold text-white">${prod.toFixed(2)} MW</span></p>
-            <p class="flex justify-between border-t border-gray-600 mt-2 pt-2"><span>Net:</span> <span class="font-bold ${net >= 0 ? 'text-green-400' : 'text-red-400'}">${net.toFixed(2)} MW</span></p>
+            <p class="flex justify-between"><span>Consumption:</span> <span class="font-bold text-white">${cons.toFixed(3)} MW</span></p>
+            <p class="flex justify-between"><span>Production:</span> <span class="font-bold text-white">${prod.toFixed(3)} MW</span></p>
+            <p class="flex justify-between border-t border-gray-600 mt-2 pt-2"><span>Net:</span> <span class="font-bold ${net >= 0 ? 'text-green-400' : 'text-red-400'}">${net.toFixed(3)} MW</span></p>
         </div>
     </div>`;
 }
@@ -387,7 +403,7 @@ function createPowerBreakdownHTML(title, sources, total, color) {
                 <div>
                     <div class="flex justify-between mb-1">
                         <span class="text-gray-300 truncate">${name}</span>
-                        <span class="font-mono text-white">${power.toFixed(2)} MW</span>
+                        <span class="font-mono text-white">${power.toFixed(3)} MW</span>
                     </div>
                     <div class="w-full bg-gray-700 rounded-full h-2"><div class="bg-${color}-500 h-2 rounded-full" style="width: ${percentage}%"></div></div>
                 </div>`
@@ -410,12 +426,12 @@ function createBuildingSummaryHTML(summary, shards, loops) {
             </div>
             <div class="space-y-1 text-xs md:col-span-2">
                  <h4 class="font-bold text-gray-400 mb-1 text-right">Cards (Total Bldgs)</h4>
-                <div class="grid grid-cols-2 gap-x-6">
-                ${Object.entries(summary).sort(([a], [b]) => a.localeCompare(b)).map(([name, {cardCount, buildingCount}]) => {
-                    const displayCount = cardCount > 1 ? `${cardCount} <span class="text-xs text-gray-400">(${buildingCount})</span>` : `${buildingCount}`;
-                    return `<p class="flex justify-between border-b border-gray-700/50 py-1"><span>${name}</span> <span class="font-bold text-white">${displayCount}</span></p>`
-                }).join('')}
-                </div>
+                 <div class="grid grid-cols-2 gap-x-6">
+                 ${Object.entries(summary).sort(([a], [b]) => a.localeCompare(b)).map(([name, {cardCount, buildingCount}]) => {
+                     const displayCount = cardCount > 1 ? `${cardCount} <span class="text-xs text-gray-400">(${buildingCount})</span>` : `${buildingCount}`;
+                     return `<p class="flex justify-between border-b border-gray-700/50 py-1"><span>${name}</span> <span class="font-bold text-white">${displayCount}</span></p>`
+                 }).join('')}
+                 </div>
             </div>
         </div>
     </div>`;
@@ -433,7 +449,7 @@ function createResourceListHTML(title, items, key, color) {
         ${items.sort((a,b)=>a.name.localeCompare(b.name)).map(i => `
             <div class="flex justify-between border-b border-gray-700/50 py-1">
                 <span>${i.name}</span>
-                <span class="font-mono text-white">${i[key].toFixed(2)}</span>
+                <span class="font-mono text-white">${i[key].toFixed(3)}</span>
             </div>`).join('') || `<p class="text-gray-500 col-span-full">None</p>`}
         </div>
     </div>`;
@@ -457,13 +473,13 @@ function createLedgerHTML(allItems, production, consumption) {
             ${[...allItems].sort().map(item => {
                 const p = production[item] || 0;
                 const c = consumption[item] || 0;
-                const net = p - c;
+                const net = p + c;
                 return `
                 <div class="grid grid-cols-4 font-mono py-1 border-b border-gray-700/50">
                     <span class="font-sans font-normal text-gray-300 truncate">${item}</span>
-                    <span class="text-right text-green-400">${p.toFixed(2)}</span>
-                    <span class="text-right text-orange-400">${c.toFixed(2)}</span>
-                    <span class="text-right font-bold ${net > 0.01 ? 'text-green-300' : net < -0.01 ? 'text-red-400' : 'text-gray-400'}">${net.toFixed(2)}</span>
+                    <span class="text-right text-green-400">${p.toFixed(3)}</span>
+                    <span class="text-right text-orange-400">${Math.abs(c).toFixed(3)}</span>
+                    <span class="text-right font-bold ${net > 0.001 ? 'text-green-300' : net < -0.001 ? 'text-red-400' : 'text-gray-400'}">${net.toFixed(3)}</span>
                 </div>`
             }).join('')}
             </div>
@@ -513,5 +529,74 @@ export function showAutoBuildOptionsModal(onConfirm) {
     });
 
     modal.querySelector('#cancel-autobuild').addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+}
+
+// --- NEW: Blueprint Import Options Modal ---
+export function showImportOptionsModal(blueprint) {
+    dom.modalContainer.innerHTML = '';
+    const modal = document.createElement('div');
+    modal.className = 'modal-backdrop';
+    modal.innerHTML = `
+        <div class="bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6">
+            <h2 class="text-xl font-bold mb-2">Import Blueprint</h2>
+            <p class="text-sm text-gray-400 mb-6">How would you like to import this blueprint?</p>
+            <div class="flex flex-col gap-4">
+                <button id="import-replace" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded text-left">
+                    <strong class="block">Replace Current Factory</strong>
+                    <span class="text-xs font-normal">Deletes everything on your canvas and loads the blueprint.</span>
+                </button>
+                <button id="import-paste" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded text-left">
+                    <strong class="block">Paste from Blueprint</strong>
+                    <span class="text-xs font-normal">Loads the blueprint onto your cursor to paste onto the current canvas.</span>
+                </button>
+            </div>
+             <button id="close-modal" class="mt-6 w-full text-center text-gray-400 hover:text-white">Cancel</button>
+        </div>
+    `;
+    dom.modalContainer.appendChild(modal);
+
+    const closeModal = () => dom.modalContainer.innerHTML = '';
+
+    modal.querySelector('#import-replace').addEventListener('click', () => {
+        loadState(blueprint, { merge: false });
+        closeModal();
+    });
+
+    modal.querySelector('#import-paste').addEventListener('click', () => {
+        startBlueprintPaste(blueprint);
+        closeModal();
+    });
+
+    modal.querySelector('#close-modal').addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+}
+
+// --- NEW: Settings Modal ---
+export function showSettingsModal() {
+    dom.modalContainer.innerHTML = '';
+    const modal = document.createElement('div');
+    modal.className = 'modal-backdrop';
+    modal.innerHTML = `
+        <div class="bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6">
+            <h2 class="text-xl font-bold mb-4">Settings</h2>
+            <div class="space-y-4 text-sm">
+                <label for="autosave-toggle" class="flex items-center justify-between p-3 rounded-md bg-gray-900/50 cursor-pointer">
+                    <span class="font-medium text-white">Enable Autosave</span>
+                    <input type="checkbox" id="autosave-toggle" class="h-5 w-5 rounded text-indigo-500 focus:ring-indigo-600" ${state.autosaveEnabled ? 'checked' : ''}>
+                </label>
+            </div>
+            <button id="close-modal" class="mt-8 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded">Done</button>
+        </div>`;
+    dom.modalContainer.appendChild(modal);
+
+    const closeModal = () => dom.modalContainer.innerHTML = '';
+    
+    const autosaveToggle = modal.querySelector('#autosave-toggle');
+    autosaveToggle.addEventListener('change', () => {
+        state.autosaveEnabled = autosaveToggle.checked;
+    });
+
+    modal.querySelector('#close-modal').addEventListener('click', closeModal);
     modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
 }

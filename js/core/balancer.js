@@ -6,6 +6,7 @@
 import state from '/SatisfiedVisual/js/state.js';
 import { updateAllCalculations } from '/SatisfiedVisual/js/core/calculations.js';
 import { SOMERSLOOP_SLOTS } from '/SatisfiedVisual/js/constants.js';
+import { round } from '/SatisfiedVisual/js/utils.js';
 
 /**
  * Balances a connected production chain by adjusting building counts and clock speeds.
@@ -129,10 +130,12 @@ export function autoBalanceChain(startCard) {
             const totalSlots = SOMERSLOOP_SLOTS[card.building] || 0;
             const outputMultiplier = totalSlots > 0 ? (1 + (card.somersloops / totalSlots)) : 1;
             for (const inputName in card.recipe.inputs) {
-                card.inputs[inputName] = card.recipe.inputs[inputName] * clockMultiplier * card.buildings;
+                const total = card.recipe.inputs[inputName] * clockMultiplier * card.buildings;
+                card.inputs[inputName] = round(total, 3);
             }
             for (const outputName in card.recipe.outputs) {
-                card.outputs[outputName] = card.recipe.outputs[outputName] * clockMultiplier * outputMultiplier * card.buildings;
+                const total = card.recipe.outputs[outputName] * clockMultiplier * outputMultiplier * card.buildings;
+                card.outputs[outputName] = round(total, 3);
             }
         }
     }

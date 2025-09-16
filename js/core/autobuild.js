@@ -2,13 +2,14 @@
  * This file (js/core/autoBuild.js) contains the logic for the "Auto-Build Inputs" feature.
  * This is an iterative, multi-pass algorithm that repeatedly scans the entire factory for deficits,
  * plans a solution, and builds machines until the factory is satisfied.
- */ 
+ */
 import state from '/SatisfiedVisual/js/state.js';
 import { recipeData } from '/SatisfiedVisual/js/data/recipes.js';
 import { createCard } from '/SatisfiedVisual/js/core/card.js';
-import { groupedArrangeLayout } from '/SatisfiedVisual/js/core/layout.js'; // <-- FIX: Import the correct function
+import { groupedArrangeLayout } from '/SatisfiedVisual/js/core/layout.js';
 import { updateAllCalculations } from '/SatisfiedVisual/js/core/calculations.js';
 import { autoBalanceChain } from '/SatisfiedVisual/js/core/balancer.js';
+import { round } from '/SatisfiedVisual/js/utils.js';
 
 // --- Helper Functions ---
 
@@ -71,6 +72,7 @@ function findExtractorForResource(item) {
 
 // --- Main Auto-Build Function ---
 export function autoBuildInputsForCard(targetCard, options) {
+    const chainCardIds = findConnectedComponent(targetCard);
     let iteration = 0;
     const MAX_ITERATIONS = 20;
 
@@ -78,13 +80,18 @@ export function autoBuildInputsForCard(targetCard, options) {
         iteration++;
         
         const deficits = new Map();
-        state.placedCards.forEach(card => {
-            if (!card.inputs) return;
+        chainCardIds.forEach(cardId => {
+            const card = state.placedCards.get(cardId);
+            if (!card || !card.inputs) return;
+
             for (const inputName in card.inputs) {
-                const isConnected = [...state.connections.values()].some(conn =>
-                    conn.to.cardId === card.id && conn.to.itemName === inputName
+                const isConnectedWithinChain = [...state.connections.values()].some(conn =>
+                    conn.to.cardId === card.id &&
+                    conn.to.itemName === inputName &&
+                    chainCardIds.has(conn.from.cardId)
                 );
-                if (!isConnected) {
+
+                if (!isConnectedWithinChain) {
                     if (!deficits.has(inputName)) {
                         deficits.set(inputName, { totalDemand: 0, consumers: [] });
                     }
@@ -112,12 +119,14 @@ export function autoBuildInputsForCard(targetCard, options) {
             if (!recipeInfo) continue;
 
             let existingCard = null;
-            for (const card of state.placedCards.values()) {
-                if (card.recipe.name === recipeInfo.recipe.name && card.building === recipeInfo.building) {
-                    existingCard = card;
-                    break;
-                }
+            for (const cardId of chainCardIds) {
+                 const card = state.placedCards.get(cardId);
+                 if (card && card.recipe.name === recipeInfo.recipe.name && card.building === recipeInfo.building) {
+                     existingCard = card;
+                     break;
+                 }
             }
+
 
             if (existingCard) {
                 let newTotalDemand = totalDemand;
@@ -131,14 +140,14 @@ export function autoBuildInputsForCard(targetCard, options) {
                 });
                 
                 const { recipe } = recipeInfo;
-                const required = newTotalDemand * 1.001;
+                const required = round(newTotalDemand * 1.001, 3);
                 const baseRate = recipe.outputs[item];
 
                 let buildings = existingCard.buildings;
-                let clock = (required / (baseRate * buildings)) * 100;
+                let clock = round((required / (baseRate * buildings)) * 100, 3);
                 if (clock > 250) {
                     buildings = Math.ceil(required / (baseRate * 2.5));
-                    clock = (required / (baseRate * buildings)) * 100;
+                    clock = round((required / (baseRate * buildings)) * 100, 3);
                 }
                 
                 existingCard.buildings = buildings;
@@ -149,11 +158,11 @@ export function autoBuildInputsForCard(targetCard, options) {
 
             } else {
                 const { building, recipe } = recipeInfo;
-                const required = totalDemand * 1.001;
+                const required = round(totalDemand * 1.001, 3);
                 const baseRate = recipe.outputs[item];
                 const isExtractor = building.includes('Extractor') || building.startsWith('Miner');
                 const buildings = (isExtractor || !baseRate) ? Math.ceil(required / (baseRate || 1)) : Math.ceil(required / baseRate);
-                const clock = isExtractor ? 100 : (required / (baseRate * buildings)) * 100;
+                const clock = isExtractor ? 100 : round((required / (baseRate * buildings)) * 100, 3);
                 let powerShards = 0;
                 if (clock > 200) powerShards = 3; else if (clock > 150) powerShards = 2; else if (clock > 100) powerShards = 1;
 
@@ -162,6 +171,7 @@ export function autoBuildInputsForCard(targetCard, options) {
                 
                 const newCardId = `card-${state.nextCardId++}`;
                 createCard(building, recipe, xPos, yPos, newCardId, { buildings, powerShard: clock, powerShards });
+                chainCardIds.add(newCardId); // Add the new card to the current chain
                 producersForConnecting.set(item, newCardId);
                 cardsCreatedThisIteration++;
             }
@@ -188,8 +198,27 @@ export function autoBuildInputsForCard(targetCard, options) {
     }
 
     // --- FINALIZATION ---
-    groupedArrangeLayout(targetCard); // <-- FIX: Call the correct existing function
-    autoBalanceChain(targetCard); 
+    groupedArrangeLayout(targetCard);
+    autoBalanceChain(targetCard);
 
 }
 
+function findConnectedComponent(startCard) {
+    const connectedIds = new Set();
+    const queue = [startCard.id];
+    const visited = new Set([startCard.id]);
+    while (queue.length > 0) {
+        const currentId = queue.shift();
+        connectedIds.add(currentId);
+        state.connections.forEach(conn => {
+            let neighborId = null;
+            if (conn.from.cardId === currentId) neighborId = conn.to.cardId;
+            if (conn.to.cardId === currentId) neighborId = conn.from.cardId;
+            if (neighborId && state.placedCards.has(neighborId) && !visited.has(neighborId)) {
+                visited.add(neighborId);
+                queue.push(neighborId);
+            }
+        });
+    }
+    return connectedIds;
+}
