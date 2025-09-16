@@ -26,7 +26,8 @@ const dom = {
     selectionSummary: document.getElementById('selection-summary'),
     sidebar: document.getElementById('sidebar'),
     sidebarToggleBtn: document.getElementById('sidebar-toggle-btn'),
-    recipeBookBtn: document.getElementById('recipe-book-btn'), // <-- New Element
+    recipeBookBtn: document.getElementById('recipe-book-btn'),
+    settingsBtn: document.getElementById('settings-btn'), // <-- New Element
 };
 
 export default dom;

@@ -3,8 +3,8 @@
  * modules and event listeners when the page is loaded.
  */
 import { initializeEventListeners } from '/SatisfiedVisual/js/events/listeners.js';
-import { populateLibrary, initializeFilter } from '/SatisfiedVisual/js/ui/library.js'; // <-- Import initializeFilter
-import { tryLoadAutosave } from '/SatisfiedVisual/js/core/io.js';
+import { populateLibrary, initializeFilter } from '/SatisfiedVisual/js/ui/library.js';
+import { tryLoadLastSession } from '/SatisfiedVisual/js/core/io.js';
 import { updateAllCalculations } from '/SatisfiedVisual/js/core/calculations.js';
 import { renderViewport } from '/SatisfiedVisual/js/ui/render.js';
 
@@ -14,13 +14,11 @@ import { renderViewport } from '/SatisfiedVisual/js/ui/render.js';
 document.addEventListener('DOMContentLoaded', () => {
     // Set up the application components
     populateLibrary();
-    initializeFilter(); // <-- Add this line to activate the search filter
+    initializeFilter();
     initializeEventListeners();
     
     // Load saved data and perform initial render
-    tryLoadAutosave();
+    tryLoadLastSession();
     updateAllCalculations();
     renderViewport();
 });
-
-

@@ -1,7 +1,7 @@
 /**
  * This file (js/core/io.js) handles all data persistence and clipboard operations,
  * including saving, loading, importing, exporting, and copy/paste functionality.
- * It has been updated to save and load the user's unlocked recipes.
+ * It has been updated for multi-tab support and a more robust paste/blueprint flow.
  */
 import dom from '/SatisfiedVisual/js/dom.js';
 import state from '/SatisfiedVisual/js/state.js';
@@ -9,13 +9,13 @@ import { recipeData } from '/SatisfiedVisual/js/data/recipes.js';
 import { screenToWorld } from '/SatisfiedVisual/js/utils.js';
 import { createCard, deleteCards } from '/SatisfiedVisual/js/core/card.js';
 import { updateAllCalculations } from '/SatisfiedVisual/js/core/calculations.js';
-import { renderCardSelections } from '/SatisfiedVisual/js/ui/render.js';
+import { renderCardSelections, renderViewport } from '/SatisfiedVisual/js/ui/render.js';
 
-const AUTOSAVE_KEY = 'satisfactoryPlannerAutosaveV14';
+const LAST_SESSION_KEY = 'satisfactoryPlannerLastSessionId';
 
 /**
  * Serializes the current canvas state into a blueprint object for saving or exporting.
- * @param {boolean} isAutosave - If true, saves to localStorage.
+ * @param {boolean} isAutosave - If true, saves to sessionStorage for the current tab.
  * @returns {object} The blueprint object.
  */
 export function saveState(isAutosave = false) {
@@ -29,60 +29,94 @@ export function saveState(isAutosave = false) {
         nextCardId: state.nextCardId,
         nextConnectionId: state.nextConnectionId,
         lineStyle: state.lineStyle,
-        // Convert the Set to an Array for JSON serialization.
-        unlockedRecipes: Array.from(state.unlockedRecipes) 
+        unlockedRecipes: Array.from(state.unlockedRecipes),
+        autosaveEnabled: state.autosaveEnabled
     };
     if (isAutosave) {
-        localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(blueprint));
+        sessionStorage.setItem(`autosave_${state.sessionId}`, JSON.stringify(blueprint));
+        localStorage.setItem(LAST_SESSION_KEY, state.sessionId);
     }
     return blueprint;
 }
 
 /**
- * Loads a blueprint object, clearing the current canvas and rebuilding it from the data.
+ * Loads a blueprint object, rebuilding the canvas from the data.
  * @param {object} blueprint - The blueprint object to load.
+ * @param {boolean} [merge=false] - If true, adds the blueprint to the existing canvas instead of replacing it.
  */
-export function loadState(blueprint) {
-    dom.canvasContent.innerHTML = '';
-    state.placedCards.clear();
-    state.connections.clear();
-    state.selectedCardIds.clear();
+export function loadState(blueprint, merge = false) {
+    if (!merge) {
+        dom.canvasContent.innerHTML = '';
+        state.placedCards.clear();
+        state.connections.clear();
+        state.selectedCardIds.clear();
+        state.viewport = blueprint.viewport || { x: 0, y: 0, zoom: 1 };
+    }
+
+    const idMap = new Map();
+    const newCardIds = new Set();
 
     if (blueprint.cards) {
         blueprint.cards.forEach(cardData => {
-            const recipe = (recipeData.recipes[cardData.building] || []).find(r => r.name === cardData.recipeName) || (cardData.building === 'Alien Power Augmenter' ? {name: cardData.recipeName, inputs:{}, outputs:{}} : null);
-            if(recipe) createCard(cardData.building, recipe, cardData.x, cardData.y, cardData.id, cardData.config);
+            const recipe = (recipeData.recipes[cardData.building] || []).find(r => r.name === cardData.recipeName) || (cardData.building === 'Alien Power Augmenter' ? { name: cardData.recipeName, inputs: {}, outputs: {} } : null);
+            if (recipe) {
+                const newId = `card-${state.nextCardId++}`;
+                idMap.set(cardData.id, newId);
+                newCardIds.add(newId);
+                const x = merge ? cardData.relX : cardData.x;
+                const y = merge ? cardData.relY : cardData.y;
+                createCard(cardData.building, recipe, x, y, newId, cardData.config);
+            }
         });
     }
 
-    if(blueprint.connections) {
-        blueprint.connections.forEach(connData => { state.connections.set(connData.id, { from: connData.from, to: connData.to }); });
+    if (blueprint.connections) {
+        blueprint.connections.forEach(connData => {
+            const newFromId = idMap.get(connData.from.cardId);
+            const newToId = idMap.get(connData.to.cardId);
+            if (newFromId && newToId) {
+                const newConnId = `conn-${state.nextConnectionId++}`;
+                state.connections.set(newConnId, {
+                    from: { cardId: newFromId, itemName: connData.from.itemName },
+                    to: { cardId: newToId, itemName: connData.to.itemName }
+                });
+            }
+        });
     }
 
-    // Load unlocked recipes if they exist in the save file, otherwise the default remains.
-    if (blueprint.unlockedRecipes) {
-        state.unlockedRecipes = new Set(blueprint.unlockedRecipes);
+    if (merge) {
+        state.selectedCardIds.clear();
+        newCardIds.forEach(id => state.selectedCardIds.add(id));
+    } else {
+        if (blueprint.unlockedRecipes) {
+            state.unlockedRecipes = new Set(blueprint.unlockedRecipes);
+        }
+        state.autosaveEnabled = blueprint.autosaveEnabled ?? true;
+        state.nextCardId = blueprint.nextCardId || state.placedCards.size + 1;
+        state.nextConnectionId = blueprint.nextConnectionId || state.connections.size + 1;
+        state.lineStyle = blueprint.lineStyle || 'curved';
+        dom.lineStyleSelect.value = state.lineStyle;
     }
 
-    state.nextCardId = blueprint.nextCardId || state.placedCards.size + 1;
-    state.nextConnectionId = blueprint.nextConnectionId || state.connections.size + 1;
-    state.viewport = blueprint.viewport || { x: 0, y: 0, zoom: 1 };
-    state.lineStyle = blueprint.lineStyle || 'curved';
-    dom.lineStyleSelect.value = state.lineStyle;
-
+    renderViewport();
     updateAllCalculations();
+    renderCardSelections();
 }
 
+
 /**
- * Tries to load the last autosaved state from localStorage.
+ * Tries to load the last session from sessionStorage.
  */
-export function tryLoadAutosave() {
-    const savedData = localStorage.getItem(AUTOSAVE_KEY);
-    if (savedData) {
-        try {
-            loadState(JSON.parse(savedData));
-        } catch {
-            localStorage.removeItem(AUTOSAVE_KEY);
+export function tryLoadLastSession() {
+    const lastSessionId = localStorage.getItem(LAST_SESSION_KEY);
+    if (lastSessionId) {
+        const savedData = sessionStorage.getItem(`autosave_${lastSessionId}`);
+        if (savedData) {
+            try {
+                loadState(JSON.parse(savedData));
+            } catch {
+                sessionStorage.removeItem(`autosave_${lastSessionId}`);
+            }
         }
     }
 }
@@ -94,7 +128,7 @@ export function copySelection() {
     if (state.selectedCardIds.size === 0) return;
     const cardsToCopy = [];
     let minX = Infinity, minY = Infinity;
-    
+
     state.selectedCardIds.forEach(id => {
         const card = state.placedCards.get(id);
         if (card) {
@@ -103,14 +137,11 @@ export function copySelection() {
             minY = Math.min(minY, card.y);
         }
     });
-    
+
     const internalConnections = [];
     state.connections.forEach(conn => {
         if (state.selectedCardIds.has(conn.from.cardId) && state.selectedCardIds.has(conn.to.cardId)) {
-            internalConnections.push({
-                fromCardId: conn.from.cardId, fromItemName: conn.from.itemName,
-                toCardId: conn.to.cardId, toItemName: conn.to.itemName
-            });
+            internalConnections.push({ from: conn.from, to: conn.to });
         }
     });
 
@@ -136,73 +167,111 @@ export function cutSelection() {
     }
 }
 
-/**
- * Handles the logic for pasting cards from the clipboard onto the canvas.
- */
-export function pasteSelection(e) {
-    if (!state.clipboard) return;
 
-    state.pastePreview = JSON.parse(JSON.stringify(state.clipboard));
+// --- PASTE LOGIC ---
+
+/**
+ * Initiates a paste operation from an imported blueprint.
+ * @param {object} blueprint - The blueprint data.
+ */
+export function startBlueprintPaste(blueprint) {
+    let minX = Infinity, minY = Infinity;
+    if (blueprint.cards) {
+        blueprint.cards.forEach(card => {
+            minX = Math.min(minX, card.x);
+            minY = Math.min(minY, card.y);
+        });
+        
+        blueprint.cards.forEach(card => {
+            card.relX = card.x - minX;
+            card.relY = card.y - minY;
+        });
+    }
+    createPastePreview(blueprint);
+}
+
+/**
+ * Initiates a paste operation from the internal clipboard.
+ */
+export function startClipboardPaste() {
+    if (!state.clipboard) return;
+    // Create a deep copy to avoid mutation issues
+    const clipboardCopy = JSON.parse(JSON.stringify(state.clipboard));
+    createPastePreview(clipboardCopy);
+}
+
+/**
+ * Creates the visual preview for a paste operation.
+ * @param {object} clipboardData - The data to create a preview for.
+ */
+function createPastePreview(clipboardData) {
+    state.pastePreview = clipboardData;
     dom.pastePreviewContainer.innerHTML = '';
+    
     state.pastePreview.cards.forEach(clipboardCard => {
-        const recipe = (recipeData.recipes[clipboardCard.building] || []).find(r => r.name === clipboardCard.recipeName) || (clipboardCard.building === 'Alien Power Augmenter' ? {name: clipboardCard.recipeName, inputs:{}, outputs:{}} : null);
-        if(recipe) createCard(clipboardCard.building, recipe, clipboardCard.relX, clipboardCard.relY, `preview-${clipboardCard.id}`, clipboardCard.config, true);
+        const recipe = (recipeData.recipes[clipboardCard.building] || []).find(r => r.name === clipboardCard.recipeName) || (clipboardCard.building === 'Alien Power Augmenter' ? { name: clipboardCard.recipeName, inputs: {}, outputs: {} } : null);
+        if (recipe) {
+            createCard(clipboardCard.building, recipe, clipboardCard.relX, clipboardCard.relY, `preview-${clipboardCard.id}`, clipboardCard.config, true);
+        }
     });
     dom.canvas.style.cursor = 'copy';
-
-    const cleanup = () => {
-        document.removeEventListener('mousedown', placePastedCards);
-        document.removeEventListener('keydown', handleEscape);
-        state.pastePreview = null;
-        dom.pastePreviewContainer.innerHTML = '';
-        dom.canvas.style.cursor = 'default';
-    };
-
-    const placePastedCards = (placeEvent) => {
-        const worldPos = screenToWorld(placeEvent.clientX, placeEvent.clientY);
-        const snappedX = Math.round(worldPos.x / state.gridSize) * state.gridSize;
-        const snappedY = Math.round(worldPos.y / state.gridSize) * state.gridSize;
-        const newIdMap = new Map();
-        
-        state.selectedCardIds.clear();
-
-        state.pastePreview.cards.forEach(clipboardCard => {
-            const oldId = clipboardCard.id;
-            const newId = `card-${state.nextCardId++}`;
-            newIdMap.set(oldId, newId);
-            const recipe = (recipeData.recipes[clipboardCard.building] || []).find(r => r.name === clipboardCard.recipeName) || (clipboardCard.building === 'Alien Power Augmenter' ? {name: clipboardCard.recipeName, inputs:{}, outputs:{}} : null);
-            if (recipe) {
-                createCard(clipboardCard.building, recipe, snappedX + clipboardCard.relX, snappedY + clipboardCard.relY, newId, clipboardCard.config);
-                state.selectedCardIds.add(newId);
-            }
-        });
-        
-        state.pastePreview.connections.forEach(conn => {
-            const newFromId = newIdMap.get(conn.fromCardId);
-            const newToId = newIdMap.get(conn.toCardId);
-            if (newFromId && newToId) {
-                const newConnId = `conn-${state.nextConnectionId++}`;
-                state.connections.set(newConnId, {
-                    from: { cardId: newFromId, itemName: conn.fromItemName },
-                    to: { cardId: newToId, itemName: conn.toItemName }
-                });
-            }
-        });
-        
-        renderCardSelections();
-        updateAllCalculations();
-        cleanup();
-    };
-
-    const handleEscape = (keyEvent) => {
-        if (keyEvent.key === 'Escape') {
-            cleanup();
-        }
-    };
-
-    setTimeout(() => {
-        document.addEventListener('mousedown', placePastedCards, { once: true });
-        document.addEventListener('keydown', handleEscape);
-    }, 0);
-
 }
+
+/**
+ * Finalizes a paste operation, placing the cards on the canvas.
+ * @param {MouseEvent} e - The mouse event triggering the final placement.
+ */
+export function finalizePaste(e) {
+    if (!state.pastePreview) return;
+
+    const worldPos = screenToWorld(e.clientX, e.clientY);
+    const snappedX = Math.round(worldPos.x / state.gridSize) * state.gridSize;
+    const snappedY = Math.round(worldPos.y / state.gridSize) * state.gridSize;
+    
+    // Remap old IDs to new IDs
+    const idMap = new Map();
+    state.pastePreview.cards.forEach(card => {
+        idMap.set(card.id, `card-${state.nextCardId++}`);
+    });
+    
+    // Deep copy the preview data to prevent mutation during creation
+    const pasteData = JSON.parse(JSON.stringify(state.pastePreview));
+
+    // Clear current selection and prepare to select the newly pasted cards
+    state.selectedCardIds.clear();
+
+    pasteData.cards.forEach(clipboardCard => {
+        const newId = idMap.get(clipboardCard.id);
+        state.selectedCardIds.add(newId);
+        const recipe = (recipeData.recipes[clipboardCard.building] || []).find(r => r.name === clipboardCard.recipeName) || (clipboardCard.building === 'Alien Power Augmenter' ? { name: clipboardCard.recipeName, inputs: {}, outputs: {} } : null);
+        if (recipe) {
+            createCard(clipboardCard.building, recipe, snappedX + clipboardCard.relX, snappedY + clipboardCard.relY, newId, clipboardCard.config);
+        }
+    });
+
+    pasteData.connections.forEach(conn => {
+        const newFromId = idMap.get(conn.from.cardId);
+        const newToId = idMap.get(conn.to.cardId);
+        if (newFromId && newToId) {
+            const newConnId = `conn-${state.nextConnectionId++}`;
+            state.connections.set(newConnId, {
+                from: { cardId: newFromId, itemName: conn.from.itemName },
+                to: { cardId: newToId, itemName: conn.to.itemName }
+            });
+        }
+    });
+
+    cancelPaste(); // Clean up the preview state
+    renderCardSelections();
+    updateAllCalculations();
+}
+
+/**
+ * Cancels an in-progress paste operation.
+ */
+export function cancelPaste() {
+    state.pastePreview = null;
+    dom.pastePreviewContainer.innerHTML = '';
+    dom.canvas.style.cursor = 'default';
+}
+

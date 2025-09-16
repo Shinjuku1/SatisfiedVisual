@@ -1,6 +1,6 @@
 /**
  * This file (js/state.js) defines the central state object that holds all the dynamic
- * data for the application. It has been updated to unlock all alternate recipes by default.
+ * data for the application. It has been updated for multi-tab support.
  */
 import { recipeData } from '/SatisfiedVisual/js/data/recipes.js';
 
@@ -47,6 +47,9 @@ const state = {
     // Initialize with all alternate recipes unlocked by default.
     unlockedRecipes: getDefaultUnlockedRecipes(),
     highlightedRecipeKey: null,
+    // New properties for multi-tab and autosave control
+    sessionId: Date.now().toString(36) + Math.random().toString(36).substring(2),
+    autosaveEnabled: true,
 };
 
 

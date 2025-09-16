@@ -46,3 +46,13 @@ export function showToast(message, duration = 3000) {
         }, duration);
     }, 10);
 }
+
+/**
+ * Rounds a number to a specified number of decimal places to avoid floating point inaccuracies.
+ * @param {number} value - The number to round.
+ * @param {number} decimals - The number of decimal places to round to.
+ * @returns {number} The rounded number.
+ */
+export function round(value, decimals) {
+  return Number(Math.round(value + 'e' + decimals) + 'e-' + decimals);
+}
