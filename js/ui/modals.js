@@ -1,7 +1,7 @@
 /**
  * This file (js/ui/modals.js) contains the logic for creating and displaying
- * all modal windows in the application. The logic for calculating raw inputs
- * in the summary has been updated to show gross consumption.
+ * all modal windows in the application. It has been updated to include the new
+ * build strategy options and persistent settings.
  */
 import dom from '/SatisfiedVisual/js/dom.js';
 import state from '/SatisfiedVisual/js/state.js';
@@ -11,18 +11,7 @@ import { updateAllCalculations } from '/SatisfiedVisual/js/core/calculations.js'
 import { startBlueprintPaste } from '/SatisfiedVisual/js/core/io.js';
 import { loadState } from '/SatisfiedVisual/js/core/io.js';
 
-// Helper to identify all possible raw resources from extractor buildings.
-const RAW_RESOURCES = new Set();
-recipeData.buildings.forEach(building => {
-    if (building.category === 'Extraction') {
-        const recipes = recipeData.recipes[building.name] || [];
-        recipes.forEach(recipe => {
-            Object.keys(recipe.outputs).forEach(outputName => {
-                RAW_RESOURCES.add(outputName);
-            });
-        });
-    }
-});
+const USER_SETTINGS_KEY = 'satisfactoryPlannerSettingsV1';
 
 // --- Recipe Book Modal ---
 export function showRecipeBookModal() {
@@ -111,6 +100,7 @@ export function showRecipeBookModal() {
     });
 }
 
+
 // --- Card Configuration Modal ---
 export function showModal(cardData) {
     dom.modalContainer.innerHTML = '';
@@ -120,16 +110,16 @@ export function showModal(cardData) {
     if (cardData.building === 'Alien Power Augmenter') {
         modal.innerHTML = `
             <div class="bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6">
-                <h2 class="text-xl font-bold mb-4 text-purple-400">Configure: Alien Power Augmenter</h2>
+                <h2 class="text-xl font-bold mb-4 text-white">Configure: Alien Power Augmenter</h2>
                 <div class="space-y-4 text-sm">
-                    <label class="font-medium text-gray-300">Number of Augmenters</label>
-                    <input type="number" value="${cardData.buildings}" min="1" step="1" class="w-full mt-1 bg-gray-700 p-2 rounded text-center border border-gray-600" data-control="buildings">
-                </div>
-                <div class="mt-6">
-                     <label for="is-fueled-toggle" class="flex items-center justify-between p-3 rounded-md bg-gray-900/50 cursor-pointer">
-                         <span class="font-medium text-white">Is Fueled? <span class="text-xs text-gray-400">(+30% grid boost)</span></span>
-                         <input type="checkbox" id="is-fueled-toggle" class="h-5 w-5 rounded text-indigo-500 focus:ring-indigo-600" ${cardData.isFueled ? 'checked' : ''}>
-                     </label>
+                    <div>
+                        <label class="font-medium text-gray-300">Number of Augmenters</label>
+                        <input type="number" value="${cardData.buildings}" min="1" step="1" class="w-full mt-1 bg-gray-700 p-2 rounded text-center border border-gray-600" data-control="buildings">
+                    </div>
+                    <label for="is-fueled-toggle" class="flex items-center justify-between p-3 rounded-md bg-gray-900/50 cursor-pointer">
+                        <span class="font-medium text-white">Is Fueled (+30% Power Boost)</span>
+                        <input type="checkbox" id="is-fueled-toggle" class="h-5 w-5 rounded text-indigo-500 focus:ring-indigo-600" ${cardData.isFueled ? 'checked' : ''}>
+                    </label>
                 </div>
                 <button id="close-modal" class="mt-8 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded">Done</button>
             </div>
@@ -137,18 +127,18 @@ export function showModal(cardData) {
         dom.modalContainer.appendChild(modal);
 
         const buildingsInput = modal.querySelector('[data-control="buildings"]');
-        const fueledToggle = modal.querySelector('#is-fueled-toggle');
+        const isFueledToggle = modal.querySelector('#is-fueled-toggle');
 
         const updateAugmenter = () => {
             cardData.buildings = parseInt(buildingsInput.value, 10) || 1;
-            cardData.isFueled = fueledToggle.checked;
+            cardData.isFueled = isFueledToggle.checked;
             cardData.element.querySelector('[data-stat="fuel-status"]').textContent = cardData.isFueled ? 'FUELED (+30% Boost)' : 'UNFUELED (+10% Boost)';
             cardData.element.querySelector('[data-stat="fuel-status"]').className = `text-sm font-bold ${cardData.isFueled ? 'text-green-400' : 'text-gray-500'}`;
             updateAllCalculations();
         };
 
         buildingsInput.addEventListener('input', updateAugmenter);
-        fueledToggle.addEventListener('change', updateAugmenter);
+        isFueledToggle.addEventListener('change', updateAugmenter);
 
     } else {
         const totalSlots = SOMERSLOOP_SLOTS[cardData.building] || 0;
@@ -284,10 +274,18 @@ export function showModal(cardData) {
 
 // --- Factory Summary Dashboard ---
 export function showSummaryModal() {
+    const rawResourceNames = new Set(
+        Object.values(recipeData.recipes)
+            .flat()
+            .filter(r => r.building?.includes('Miner') || r.building?.includes('Extractor'))
+            .map(r => Object.keys(r.outputs)[0])
+    );
+
     const production = {}, consumption = {};
     let powerConsumption = 0, powerProduction = 0;
     const alienAugmenters = [], buildingSummary = {}, powerByConsumer = {}, powerByProducer = {};
     let totalShards = 0, totalLoops = 0;
+    const rawInputs = {};
 
     state.placedCards.forEach(card => {
         const buildingInfo = state.buildingsMap.get(card.building);
@@ -308,7 +306,12 @@ export function showSummaryModal() {
 
         if (card.buildings > 0) {
             Object.entries(card.outputs).forEach(([n, v]) => { production[n] = (production[n] || 0) + v; });
-            Object.entries(card.inputs).forEach(([n, v]) => { consumption[n] = (consumption[n] || 0) + v; });
+            Object.entries(card.inputs).forEach(([n, v]) => {
+                consumption[n] = (consumption[n] || 0) + v;
+                if(rawResourceNames.has(n)) {
+                    rawInputs[n] = (rawInputs[n] || 0) + v;
+                }
+            });
             if (card.power < 0) {
                 const c = -card.power;
                 powerConsumption += c;
@@ -327,16 +330,8 @@ export function showSummaryModal() {
 
     const allItems = new Set([...Object.keys(production), ...Object.keys(consumption)]);
     const finalOutputs = [];
-    
-    // MODIFIED: Raw inputs are now the total consumption of items defined as raw resources.
-    const rawInputs = Object.entries(consumption)
-        .filter(([name]) => RAW_RESOURCES.has(name) && consumption[name] > 0.001)
-        .map(([name, val]) => ({ name: name, c: val }));
-
     allItems.forEach(item => {
-        const p = production[item] || 0;
-        const c = consumption[item] || 0;
-        const net = p - c;
+        const net = (production[item] || 0) - (consumption[item] || 0);
         if (net > 0.01) {
             finalOutputs.push({ name: item, p: net });
         }
@@ -344,6 +339,8 @@ export function showSummaryModal() {
 
     const topPowerConsumers = Object.entries(powerByConsumer).sort(([, a], [, b]) => b - a).slice(0, 10);
     const topPowerProducers = Object.entries(powerByProducer).sort(([, a], [, b]) => b - a).slice(0, 10);
+    const rawInputList = Object.entries(rawInputs).map(([name, val]) => ({name, c: val}));
+
 
     const modal = document.createElement('div');
     modal.className = 'modal-backdrop';
@@ -369,7 +366,7 @@ export function showSummaryModal() {
                     ${createBuildingSummaryHTML(buildingSummary, totalShards, totalLoops)}
                 </div>
                 <div id="summary-tab-resources" class="hidden grid grid-cols-1 md:grid-cols-2 gap-6">
-                    ${createResourceListHTML('Raw Inputs', rawInputs, 'c', 'orange')}
+                    ${createResourceListHTML('Raw Inputs', rawInputList, 'c', 'orange')}
                     ${createResourceListHTML('Final Outputs', finalOutputs, 'p', 'green')}
                 </div>
                 <div id="summary-tab-ledger" class="hidden">
@@ -512,6 +509,74 @@ function createLedgerHTML(allItems, production, consumption) {
     </div>`;
 }
 
+// --- Import Options Modal ---
+export function showImportOptionsModal(blueprint) {
+    dom.modalContainer.innerHTML = '';
+    const modal = document.createElement('div');
+    modal.className = 'modal-backdrop';
+    modal.innerHTML = `
+        <div class="bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6">
+            <h2 class="text-xl font-bold mb-4">Import Blueprint</h2>
+            <p class="text-sm text-gray-400 mb-6">How would you like to import this blueprint?</p>
+            <div class="flex flex-col gap-4">
+                <button id="import-replace" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded transition-colors">Replace Current Factory</button>
+                <button id="import-paste" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded transition-colors">Paste from Blueprint</button>
+                <button id="import-cancel" class="w-full mt-2 bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded transition-colors">Cancel</button>
+            </div>
+        </div>
+    `;
+    dom.modalContainer.appendChild(modal);
+
+    const closeModal = () => dom.modalContainer.innerHTML = '';
+
+    modal.querySelector('#import-replace').addEventListener('click', () => {
+        loadState(blueprint);
+        closeModal();
+    });
+    modal.querySelector('#import-paste').addEventListener('click', () => {
+        startBlueprintPaste(blueprint);
+        closeModal();
+    });
+    modal.querySelector('#import-cancel').addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+}
+
+// --- Settings Modal ---
+export function showSettingsModal() {
+    dom.modalContainer.innerHTML = '';
+    const modal = document.createElement('div');
+    modal.className = 'modal-backdrop';
+    modal.innerHTML = `
+        <div class="bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6">
+            <h2 class="text-xl font-bold mb-6 text-white">Settings</h2>
+            <div class="space-y-4">
+                 <label for="autosave-toggle" class="flex items-center justify-between p-3 rounded-md bg-gray-900/50 cursor-pointer">
+                    <span class="font-medium text-white">Enable Autosave</span>
+                    <input type="checkbox" id="autosave-toggle" class="h-5 w-5 rounded text-indigo-500 focus:ring-indigo-600" ${state.autosaveEnabled ? 'checked' : ''}>
+                </label>
+            </div>
+             <button id="close-modal" class="mt-8 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded">Done</button>
+        </div>
+    `;
+    dom.modalContainer.appendChild(modal);
+
+    const closeModal = () => dom.modalContainer.innerHTML = '';
+    modal.querySelector('#close-modal').addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+
+    modal.querySelector('#autosave-toggle').addEventListener('change', (e) => {
+        state.autosaveEnabled = e.target.checked;
+        try {
+            localStorage.setItem(USER_SETTINGS_KEY, JSON.stringify({
+                autosaveEnabled: state.autosaveEnabled
+            }));
+        } catch (err) {
+            console.error("Could not save user settings.", err);
+        }
+    });
+}
+
+
 // --- Auto-Build Options Modal ---
 export function showAutoBuildOptionsModal(onConfirm) {
     dom.modalContainer.innerHTML = '';
@@ -520,8 +585,29 @@ export function showAutoBuildOptionsModal(onConfirm) {
     modal.innerHTML = `
         <div class="bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6">
             <h2 class="text-xl font-bold mb-4">Auto-Build Options</h2>
-            <p class="text-sm text-gray-400 mb-4">Auto-build will only use alternate recipes that are enabled in the Recipe Book.</p>
-            <div class="space-y-4 text-sm">
+            <p class="text-sm text-gray-400 mb-6">Auto-build will only use alternate recipes that are enabled in the Recipe Book.</p>
+            
+            <div class="space-y-4">
+                <div class="p-3 rounded-md bg-gray-900/50">
+                    <h3 class="font-medium text-white mb-3">Build Strategy</h3>
+                    <div class="space-y-2 text-sm">
+                        <label class="flex items-center gap-3 cursor-pointer">
+                            <input type="radio" name="build-strategy" value="simple" class="h-4 w-4 text-indigo-500 focus:ring-indigo-600" ${state.autoBuildOptions.buildStrategy === 'simple' ? 'checked' : ''}>
+                            <div>
+                                <p class="text-gray-200">Simple (Fastest)</p>
+                                <p class="text-gray-400 text-xs">Prioritizes recipes with the fewest ingredients.</p>
+                            </div>
+                        </label>
+                        <label class="flex items-center gap-3 cursor-pointer">
+                            <input type="radio" name="build-strategy" value="resourceSaver" class="h-4 w-4 text-indigo-500 focus:ring-indigo-600" ${state.autoBuildOptions.buildStrategy === 'resourceSaver' ? 'checked' : ''}>
+                            <div>
+                                <p class="text-gray-200">Resource Saver (Most Efficient)</p>
+                                <p class="text-gray-400 text-xs">Prioritizes alternate recipes to minimize raw resource use.</p>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
                 <label for="use-alts-toggle" class="flex items-center justify-between p-3 rounded-md bg-gray-900/50 cursor-pointer">
                     <span class="font-medium text-white">Use Unlocked Alternate Recipes</span>
                     <input type="checkbox" id="use-alts-toggle" class="h-5 w-5 rounded text-indigo-500 focus:ring-indigo-600" checked>
@@ -531,6 +617,7 @@ export function showAutoBuildOptionsModal(onConfirm) {
                     <input type="checkbox" id="use-sam-toggle" class="h-5 w-5 rounded text-indigo-500 focus:ring-indigo-600" ${state.autoBuildOptions.useSAM ? 'checked' : ''}>
                 </label>
             </div>
+
             <div class="mt-6 flex gap-4">
                 <button id="cancel-autobuild" class="w-full bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded">Cancel</button>
                 <button id="confirm-autobuild" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded">Build</button>
@@ -545,77 +632,19 @@ export function showAutoBuildOptionsModal(onConfirm) {
     const altsToggle = modal.querySelector('#use-alts-toggle');
 
     modal.querySelector('#confirm-autobuild').addEventListener('click', () => {
+        const selectedStrategy = modal.querySelector('input[name="build-strategy"]:checked').value;
+        state.autoBuildOptions.buildStrategy = selectedStrategy; // Persist choice for next time
+        
         const options = {
             useSAM: samToggle.checked,
-            useAlternates: altsToggle.checked
+            useAlternates: altsToggle.checked,
+            buildStrategy: selectedStrategy
         };
         onConfirm(options); 
         closeModal();
     });
 
     modal.querySelector('#cancel-autobuild').addEventListener('click', closeModal);
-    modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
-}
-
-// --- NEW: Import Options Modal ---
-export function showImportOptionsModal(blueprint) {
-    dom.modalContainer.innerHTML = '';
-    const modal = document.createElement('div');
-    modal.className = 'modal-backdrop';
-    modal.innerHTML = `
-        <div class="bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6 text-center">
-            <h2 class="text-xl font-bold mb-4">Import Blueprint</h2>
-            <p class="text-sm text-gray-400 mb-6">How would you like to import this blueprint?</p>
-            <div class="flex flex-col gap-4">
-                <button id="import-replace" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded">Replace Current Factory</button>
-                <button id="import-paste" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded">Paste from Blueprint</button>
-                <button id="import-cancel" class="mt-2 w-full bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded">Cancel</button>
-            </div>
-        </div>
-    `;
-    dom.modalContainer.appendChild(modal);
-    
-    const closeModal = () => dom.modalContainer.innerHTML = '';
-
-    modal.querySelector('#import-replace').addEventListener('click', () => {
-        loadState(blueprint);
-        closeModal();
-    });
-    modal.querySelector('#import-paste').addEventListener('click', () => {
-        startBlueprintPaste(blueprint);
-        closeModal();
-    });
-    modal.querySelector('#import-cancel').addEventListener('click', closeModal);
-}
-
-// --- NEW: Settings Modal ---
-export function showSettingsModal() {
-    dom.modalContainer.innerHTML = '';
-    const modal = document.createElement('div');
-    modal.className = 'modal-backdrop';
-    modal.innerHTML = `
-        <div class="bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6">
-             <div class="flex justify-between items-center mb-6">
-                <h2 class="text-2xl font-bold text-white">Settings</h2>
-                <button id="close-modal" class="text-gray-400 hover:text-white text-3xl">&times;</button>
-            </div>
-            <div class="space-y-4">
-                <label for="autosave-toggle" class="flex items-center justify-between p-3 rounded-md bg-gray-900/50 cursor-pointer">
-                    <span class="font-medium text-white">Enable Autosave</span>
-                    <input type="checkbox" id="autosave-toggle" class="h-5 w-5 rounded text-indigo-500 focus:ring-indigo-600" ${state.autosaveEnabled ? 'checked' : ''}>
-                </label>
-            </div>
-        </div>
-    `;
-    dom.modalContainer.appendChild(modal);
-
-    const closeModal = () => dom.modalContainer.innerHTML = '';
-
-    modal.querySelector('#autosave-toggle').addEventListener('change', (e) => {
-        state.autosaveEnabled = e.target.checked;
-    });
-
-    modal.querySelector('#close-modal').addEventListener('click', closeModal);
     modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
 }
 

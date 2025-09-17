@@ -1,8 +1,10 @@
 /**
  * This file (js/state.js) defines the central state object that holds all the dynamic
- * data for the application. It has been updated for multi-tab support.
+ * data for the application. It has been updated to unlock all alternate recipes by default
+ * and to manage session-specific data and user settings.
  */
 import { recipeData } from '/SatisfiedVisual/js/data/recipes.js';
+import { v4 as uuidv4 } from 'https://cdn.jsdelivr.net/npm/uuid@9.0.1/+esm'
 
 /**
  * Scans the recipe data and returns a Set containing the keys for all alternate recipes.
@@ -41,16 +43,18 @@ const state = {
     nextConnectionId: 0,
     gridSize: 40,
     lineStyle: 'curved',
+    // --- User Settings & Session ---
+    sessionId: uuidv4(), // Unique ID for this browser tab
+    autosaveEnabled: true, // User preference for autosaving
     autoBuildOptions: {
         useSAM: true,
+        buildStrategy: 'simple', // 'simple' or 'resourceSaver'
     },
     // Initialize with all alternate recipes unlocked by default.
     unlockedRecipes: getDefaultUnlockedRecipes(),
     highlightedRecipeKey: null,
-    // New properties for multi-tab and autosave control
-    sessionId: Date.now().toString(36) + Math.random().toString(36).substring(2),
-    autosaveEnabled: true,
 };
 
 
 export default state;
+

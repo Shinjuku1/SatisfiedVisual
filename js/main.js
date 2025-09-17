@@ -7,14 +7,37 @@ import { populateLibrary, initializeFilter } from '/SatisfiedVisual/js/ui/librar
 import { tryLoadLastSession } from '/SatisfiedVisual/js/core/io.js';
 import { updateAllCalculations } from '/SatisfiedVisual/js/core/calculations.js';
 import { renderViewport } from '/SatisfiedVisual/js/ui/render.js';
+import state from '/SatisfiedVisual/js/state.js';
+
+const USER_SETTINGS_KEY = 'satisfactoryPlannerSettingsV1';
+
+/**
+ * Loads user settings from localStorage and applies them to the state.
+ */
+function initializeUserSettings() {
+    const savedSettings = localStorage.getItem(USER_SETTINGS_KEY);
+    if (savedSettings) {
+        try {
+            const settings = JSON.parse(savedSettings);
+            if (typeof settings.autosaveEnabled === 'boolean') {
+                state.autosaveEnabled = settings.autosaveEnabled;
+            }
+        } catch (e) {
+            console.error("Could not parse user settings.", e);
+            localStorage.removeItem(USER_SETTINGS_KEY);
+        }
+    }
+}
+
 
 /**
  * Main function that runs after the HTML document has been fully loaded.
  */
 document.addEventListener('DOMContentLoaded', () => {
     // Set up the application components
+    initializeUserSettings(); // Load persistent settings first
     populateLibrary();
-    initializeFilter();
+    initializeFilter(); 
     initializeEventListeners();
     
     // Load saved data and perform initial render
@@ -22,3 +45,4 @@ document.addEventListener('DOMContentLoaded', () => {
     updateAllCalculations();
     renderViewport();
 });
+
