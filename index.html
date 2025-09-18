@@ -226,73 +226,151 @@
             color: var(--accent-yellow);
         }
 
-        /* NEW: Summary Modal Tab Styles */
+        /* Revamped Summary Modal & Header Styles */
         .summary-tab-button {
             transition: background-color 0.2s, border-color 0.2s, color 0.2s;
             border-bottom: 3px solid transparent;
+            padding: 1rem 1.5rem;
         }
         .summary-tab-button.active {
             border-color: var(--accent-indigo);
             color: var(--accent-indigo);
             background-color: rgba(99, 102, 241, 0.1);
         }
+        .summary-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 0.75rem;
+            padding: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+        }
+        .summary-card-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: 1.125rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+        .summary-progress-bar-bg {
+            width: 100%;
+            background-color: #374151;
+            border-radius: 9999px;
+            height: 0.75rem;
+        }
+        .summary-progress-bar {
+            height: 0.75rem;
+            border-radius: 9999px;
+            transition: width 0.5s ease-in-out;
+        }
+        .summary-table {
+            width: 100%;
+            font-size: 0.875rem;
+        }
+        .summary-table th {
+            text-align: left;
+            padding: 0.5rem 0.75rem;
+            border-bottom: 2px solid var(--border-color);
+            color: var(--text-dark);
+            font-weight: 500;
+        }
+        .summary-table td {
+            padding: 0.6rem 0.75rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .summary-table tr:last-child td {
+            border-bottom: none;
+        }
+        
+        /* NEW: Consistent Scrollbar Styles */
+        #total-inputs::-webkit-scrollbar, 
+        #total-outputs::-webkit-scrollbar,
+        #recipe-library::-webkit-scrollbar { 
+            width: 4px; 
+        }
+        #total-inputs::-webkit-scrollbar-track, 
+        #total-outputs::-webkit-scrollbar-track,
+        #recipe-library::-webkit-scrollbar-track { 
+            background: transparent; 
+        }
+        #total-inputs::-webkit-scrollbar-thumb, 
+        #total-outputs::-webkit-scrollbar-thumb,
+        #recipe-library::-webkit-scrollbar-thumb { 
+            background: #555; 
+            border-radius: 2px; 
+        }
+        #total-inputs::-webkit-scrollbar-thumb:hover, 
+        #total-outputs::-webkit-scrollbar-thumb:hover,
+        #recipe-library::-webkit-scrollbar-thumb:hover { 
+            background: #777; 
+        }
     </style>
 </head>
 <body class="bg-gray-900 text-gray-200 h-screen flex flex-col overflow-hidden">
-    <!-- Header -->
-    <header class="bg-gray-800 p-3 shadow-lg z-30 border-b border-gray-700">
-        <div class="flex items-center gap-4">
+    <!-- Revamped Header -->
+    <header class="bg-gray-800 p-2 shadow-lg z-30 border-b border-gray-700 flex items-center justify-between gap-4">
+        <!-- Left Side: Toggle and Title -->
+        <div class="flex items-center gap-3">
             <button id="sidebar-toggle-btn" class="p-2 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
                 <svg class="chevron w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
                 </svg>
             </button>
-            <h1 class="text-2xl font-bold text-white">Satisfied Visual Planner</h1>
-            <div class="flex-1 grid grid-cols-2 gap-4">
-                <div class="bg-gray-900 p-3 rounded-lg border border-gray-700">
-                    <h3 class="text-sm font-bold text-orange-400 mb-2">Total Raw Inputs (/min)</h3>
-                    <div id="total-inputs" class="text-xs grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-3 gap-y-1 h-16 overflow-y-auto"></div>
-                </div>
-                <div class="bg-gray-900 p-3 rounded-lg border border-gray-700">
-                    <h3 class="text-sm font-bold text-green-400 mb-2">Total Final Outputs (/min)</h3>
-                    <div id="total-outputs" class="text-xs grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-3 gap-y-1 h-16 overflow-y-auto"></div>
-                </div>
+            <h1 class="text-xl font-bold text-white">Satisfied Visual Planner</h1>
+        </div>
+        
+        <!-- Middle: Core Stats -->
+        <div class="flex-1 flex justify-center items-center gap-4">
+            <div class="bg-gray-900 p-2 rounded-lg border border-gray-700 w-full max-w-xs">
+                <h3 class="text-xs font-bold text-orange-400 mb-1 text-center">Total Raw Inputs (/min)</h3>
+                <div id="total-inputs" class="text-xs grid grid-cols-2 gap-x-3 gap-y-1 h-12 overflow-y-auto px-2"></div>
             </div>
-            <div class="flex items-center gap-4">
-                <div class="bg-gray-900 p-3 rounded-lg text-center border border-gray-700">
-                    <h3 class="text-sm font-bold text-cyan-400 mb-1">Total Power</h3>
-                    <div id="total-power" class="text-2xl font-bold text-white">0.000 <span class="text-base text-cyan-400">MW</span></div>
-                </div>
-                <div class="flex flex-col gap-2">
-                    <button id="recipe-book-btn" class="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-3 text-xs rounded transition-colors">Recipe Book</button>
-                    <button id="summary-btn" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-3 text-xs rounded transition-colors">Summary</button>
-                </div>
-                <div class="flex flex-col gap-2">
-                    <button id="import-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-3 text-xs rounded transition-colors">Import</button>
-                    <button id="export-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 text-xs rounded transition-colors">Export</button>
-                    <input type="file" id="import-input" class="hidden" accept=".json">
-                </div>
-                <div class="flex flex-col gap-2">
-                    <select id="line-style-select" class="bg-gray-700 border border-gray-600 text-white text-xs rounded py-2 px-2 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                        <option value="curved">Curved</option>
-                        <option value="straight">Straight</option>
-                        <option value="circuit">Circuit</option>
-                    </select>
-                     <!-- NEW SETTINGS BUTTON -->
-                    <button id="settings-btn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-3 text-xs rounded transition-colors flex items-center justify-center gap-2">
-                        <svg class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734-2.106-2.106a1.533 1.533 0 01-.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd" /></svg>
-                        Settings
-                    </button>
-                </div>
+            <div class="bg-gray-900 p-2 rounded-lg border border-gray-700 w-full max-w-xs">
+                <h3 class="text-xs font-bold text-green-400 mb-1 text-center">Total Final Outputs (/min)</h3>
+                <div id="total-outputs" class="text-xs grid grid-cols-2 gap-x-3 gap-y-1 h-12 overflow-y-auto px-2"></div>
             </div>
+            <div class="bg-gray-900 p-2 rounded-lg text-center border border-gray-700">
+                <h3 class="text-xs font-bold text-cyan-400 mb-1">Total Power</h3>
+                <div id="total-power" class="text-xl font-bold text-white leading-tight">0 <span class="text-sm text-cyan-400">MW</span></div>
+            </div>
+        </div>
+
+        <!-- Right Side: Action Buttons -->
+        <div class="flex items-center gap-2">
+            <button id="recipe-book-btn" class="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-3 text-xs rounded transition-colors">Recipe Book</button>
+            <button id="summary-btn" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-3 text-xs rounded transition-colors">Summary</button>
+            <div class="h-6 w-px bg-gray-600 mx-1"></div>
+            <button id="import-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-3 text-xs rounded transition-colors">Import</button>
+            <button id="export-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 text-xs rounded transition-colors">Export</button>
+            <input type="file" id="import-input" class="hidden" accept=".json">
+            <div class="h-6 w-px bg-gray-600 mx-1"></div>
+            <select id="line-style-select" class="bg-gray-700 border border-gray-600 text-white text-xs rounded py-2 px-2 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <option value="curved">Curved</option>
+                <option value="straight">Straight</option>
+                <option value="circuit">Circuit</option>
+            </select>
+            <button id="settings-btn" title="Settings" class="bg-gray-600 hover:bg-gray-700 text-white font-bold p-2 text-xs rounded transition-colors flex items-center justify-center">
+                 <svg class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734-2.106-2.106a1.533 1.533 0 01-.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd" /></svg>
+            </button>
+            <a href="https://buymeacoffee.com/shinjuku1" target="_blank" rel="noopener noreferrer" title="Support the developer!" class="bg-yellow-400 hover:bg-yellow-500 text-black font-bold p-2 text-xs rounded transition-colors flex items-center justify-center gap-1">
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M8 9.5A1.5 1.5 0 106.5 8 1.5 1.5 0 008 9.5zM11.5 8a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"/><path d="M2.368 1.623a.5.5 0 01.52-.323l14.28.006a.5.5 0 01.488.63l-1.393 5.438a.5.5 0 01-.488.369H4.156a.5.5 0 01-.488-.63L2.368 1.623zM2.81 8.614a1.5 1.5 0 01-1.488-.63L0 1.623a1.5 1.5 0 011.56-1.3l14.28.005a1.5 1.5 0 011.464 1.891l-1.393 5.438a1.5 1.5 0 01-1.464 1.108H4.32a1.5 1.5 0 01-1.51-1.074zM16 11.5a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 012 11.5V10h14v1.5z"/></svg>
+                Support
+            </a>
         </div>
     </header>
 
     <div class="flex flex-1 overflow-hidden">
         <!-- Sidebar -->
         <aside id="sidebar" class="w-1/4 max-w-sm flex flex-col bg-gray-800 border-r border-gray-700 z-20">
-            <div class="p-2 border-b border-gray-700">
+            <!-- REVAMPED: Sidebar Controls -->
+            <div class="p-2 border-b border-gray-700 space-y-2">
                 <input type="search" id="recipe-filter" placeholder="Filter recipes..." class="w-full bg-gray-700 border border-gray-600 rounded-md p-2 text-sm focus:ring-indigo-500 focus:border-indigo-500 text-white">
+                <button id="collapse-all-btn" class="w-full bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-3 text-xs rounded transition-colors flex items-center justify-center gap-2">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 11l7-7 7 7M5 19l7-7 7 7" /></svg>
+                    <span>Collapse All</span>
+                </button>
             </div>
             <div id="recipe-library" class="flex-1 overflow-y-auto p-2 space-y-1"></div>
             <div id="selection-summary" class="hidden p-2 border-t border-gray-700"></div>
@@ -315,3 +393,4 @@
     <script type="module" src="/SatisfiedVisual/js/main.js"></script>
 </body>
 </html>
+

@@ -27,7 +27,8 @@ const dom = {
     sidebar: document.getElementById('sidebar'),
     sidebarToggleBtn: document.getElementById('sidebar-toggle-btn'),
     recipeBookBtn: document.getElementById('recipe-book-btn'),
-    settingsBtn: document.getElementById('settings-btn'), // <-- New Element
+    settingsBtn: document.getElementById('settings-btn'),
+    collapseAllBtn: document.getElementById('collapse-all-btn'), // <-- New Element
 };
 
 export default dom;

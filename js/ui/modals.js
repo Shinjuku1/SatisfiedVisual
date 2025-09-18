@@ -54,9 +54,9 @@ export function showRecipeBookModal() {
                 <button id="close-modal" class="text-gray-400 hover:text-white text-3xl">&times;</button>
             </div>
             <div class="flex items-center gap-4 mb-4 border-b border-gray-700 pb-4">
-                 <p class="text-sm text-gray-300 flex-1">Select which alternate recipes you have unlocked. The "Auto-Build" feature will only use recipes that are checked here.</p>
-                 <button id="select-all-alts" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-md text-sm">Select All</button>
-                 <button id="deselect-all-alts" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md text-sm">Deselect All</button>
+                <p class="text-sm text-gray-300 flex-1">Select which alternate recipes you have unlocked. The "Auto-Build" feature will only use recipes that are checked here.</p>
+                <button id="select-all-alts" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-md text-sm">Select All</button>
+                <button id="deselect-all-alts" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md text-sm">Deselect All</button>
             </div>
             <div class="flex-1 overflow-y-auto pr-2">
                 ${recipeListHTML}
@@ -272,76 +272,88 @@ export function showModal(cardData) {
     modal.querySelector('#close-modal').addEventListener('click', closeModal);
 }
 
-// --- Factory Summary Dashboard ---
+// --- NEW/REVAMPED: Factory Summary Dashboard ---
 export function showSummaryModal() {
-    const rawResourceNames = new Set(
-        Object.values(recipeData.recipes)
-            .flat()
-            .filter(r => r.building?.includes('Miner') || r.building?.includes('Extractor'))
-            .map(r => Object.keys(r.outputs)[0])
-    );
-
-    const production = {}, consumption = {};
+    // --- 1. Data Aggregation ---
+    const production = new Map();
+    const consumption = new Map();
+    const buildingSummary = new Map();
+    const powerByConsumer = new Map();
+    const powerByProducer = new Map();
+    const alienAugmenters = [];
     let powerConsumption = 0, powerProduction = 0;
-    const alienAugmenters = [], buildingSummary = {}, powerByConsumer = {}, powerByProducer = {};
     let totalShards = 0, totalLoops = 0;
-    const rawInputs = {};
 
     state.placedCards.forEach(card => {
+        // Summarize building counts and upgrades
         const buildingInfo = state.buildingsMap.get(card.building);
         const isPowerGenerator = buildingInfo && buildingInfo.category === 'Power';
-        const name = isPowerGenerator ? card.recipe.name : card.building;
+        const summaryName = isPowerGenerator ? card.recipe.name : card.building;
 
-        if (!buildingSummary[name]) {
-            buildingSummary[name] = { cardCount: 0, buildingCount: 0 };
+        if (!buildingSummary.has(summaryName)) {
+            buildingSummary.set(summaryName, { cardCount: 0, buildingCount: 0 });
         }
-        buildingSummary[name].cardCount++;
-        buildingSummary[name].buildingCount += card.buildings;
+        const summary = buildingSummary.get(summaryName);
+        summary.cardCount++;
+        summary.buildingCount += card.buildings;
         totalShards += (card.powerShards || 0) * card.buildings;
         totalLoops += (card.somersloops || 0) * card.buildings;
 
         if (card.building === 'Alien Power Augmenter') {
-            alienAugmenters.push(card); return;
+            alienAugmenters.push(card);
+            return; // Skip I/O for this special building
         }
 
+        // Aggregate I/O and Power
         if (card.buildings > 0) {
-            Object.entries(card.outputs).forEach(([n, v]) => { production[n] = (production[n] || 0) + v; });
-            Object.entries(card.inputs).forEach(([n, v]) => {
-                consumption[n] = (consumption[n] || 0) + v;
-                if(rawResourceNames.has(n)) {
-                    rawInputs[n] = (rawInputs[n] || 0) + v;
-                }
-            });
+            Object.entries(card.outputs).forEach(([n, v]) => production.set(n, (production.get(n) || 0) + v));
+            Object.entries(card.inputs).forEach(([n, v]) => consumption.set(n, (consumption.get(n) || 0) + v));
+            
             if (card.power < 0) {
-                const c = -card.power;
-                powerConsumption += c;
-                powerByConsumer[card.building] = (powerByConsumer[card.building] || 0) + c;
+                const consumed = -card.power;
+                powerConsumption += consumed;
+                powerByConsumer.set(card.building, (powerByConsumer.get(card.building) || 0) + consumed);
             } else {
                 powerProduction += card.power;
-                powerByProducer[name] = (powerByProducer[name] || 0) + card.power;
+                powerByProducer.set(summaryName, (powerByProducer.get(summaryName) || 0) + card.power);
             }
         }
     });
-    
-    let flatPowerAdded = 0, boostMultiplier = 0;
-    alienAugmenters.forEach(a => { flatPowerAdded += 500 * a.buildings; boostMultiplier += (a.isFueled ? 0.3 : 0.1) * a.buildings; });
-    powerProduction = (powerProduction + flatPowerAdded) * (1 + boostMultiplier);
-    if(alienAugmenters.length > 0) powerByProducer['Alien Power Augmenters'] = flatPowerAdded * (1 + boostMultiplier);
 
-    const allItems = new Set([...Object.keys(production), ...Object.keys(consumption)]);
+    // --- 2. Post-Calculation Processing ---
+    let flatPowerAdded = 0, boostMultiplier = 0;
+    alienAugmenters.forEach(a => {
+        flatPowerAdded += 500 * a.buildings;
+        boostMultiplier += (a.isFueled ? 0.3 : 0.1) * a.buildings;
+    });
+    const totalBasePower = powerProduction + flatPowerAdded;
+    const totalBoostedPower = totalBasePower * (1 + boostMultiplier);
+    if (alienAugmenters.length > 0) {
+        const augmenterPower = flatPowerAdded * (1 + boostMultiplier);
+        powerByProducer.set('Alien Augmenter', (powerByProducer.get('Alien Augmenter') || 0) + augmenterPower);
+    }
+    
+    // Calculate Raw Inputs (Gross Consumption) and Final Outputs (Net Production)
+    const allItems = new Set([...production.keys(), ...consumption.keys()]);
     const finalOutputs = [];
+    const rawInputs = [];
+    const RAW_RESOURCES = new Set(['Water', 'Crude Oil', 'Nitrogen Gas', 'Iron Ore', 'Copper Ore', 'Limestone', 'Coal', 'Caterium Ore', 'Sulfur', 'Raw Quartz', 'Bauxite', 'Uranium', 'SAM']);
+
     allItems.forEach(item => {
-        const net = (production[item] || 0) - (consumption[item] || 0);
-        if (net > 0.01) {
-            finalOutputs.push({ name: item, p: net });
+        const consumed = consumption.get(item) || 0;
+        if (RAW_RESOURCES.has(item) && consumed > 0.001) {
+            rawInputs.push({ name: item, rate: consumed });
+        }
+        const net = (production.get(item) || 0) - consumed;
+        if (net > 0.001) {
+            finalOutputs.push({ name: item, rate: net });
         }
     });
 
-    const topPowerConsumers = Object.entries(powerByConsumer).sort(([, a], [, b]) => b - a).slice(0, 10);
-    const topPowerProducers = Object.entries(powerByProducer).sort(([, a], [, b]) => b - a).slice(0, 10);
-    const rawInputList = Object.entries(rawInputs).map(([name, val]) => ({name, c: val}));
+    const topPowerConsumers = [...powerByConsumer.entries()].sort(([, a], [, b]) => b - a).slice(0, 10);
+    const topPowerProducers = [...powerByProducer.entries()].sort(([, a], [, b]) => b - a);
 
-
+    // --- 3. Render Modal ---
     const modal = document.createElement('div');
     modal.className = 'modal-backdrop';
     modal.innerHTML = `
@@ -351,26 +363,28 @@ export function showSummaryModal() {
                 <button id="close-modal" class="text-gray-400 hover:text-white text-3xl">&times;</button>
             </div>
             <div class="flex border-b border-gray-700">
-                <button data-tab="power" class="summary-tab-button active font-semibold p-4">Power</button>
-                <button data-tab="buildings" class="summary-tab-button font-semibold p-4">Buildings & Upgrades</button>
-                <button data-tab="resources" class="summary-tab-button font-semibold p-4">Resources</button>
-                <button data-tab="ledger" class="summary-tab-button font-semibold p-4">Item Ledger</button>
+                <button data-tab="power" class="summary-tab-button active">Power</button>
+                <button data-tab="resources" class="summary-tab-button">Resources</button>
+                <button data-tab="buildings" class="summary-tab-button">Buildings</button>
+                <button data-tab="ledger" class="summary-tab-button">Item Ledger</button>
+                <button data-tab="support" class="summary-tab-button">Support & Info</button>
             </div>
             <div class="flex-1 overflow-y-auto p-6 space-y-6">
-                <div id="summary-tab-power" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    ${createPowerOverviewHTML(powerProduction, powerConsumption)}
-                    ${createPowerBreakdownHTML('Top Power Consumers', topPowerConsumers, powerConsumption, 'cyan')}
-                    ${createPowerBreakdownHTML('Power Producers', topPowerProducers, powerProduction, 'green')}
+                <div id="summary-tab-power">
+                     ${createPowerSummaryHTML(totalBoostedPower, powerConsumption, topPowerProducers, topPowerConsumers)}
+                </div>
+                <div id="summary-tab-resources" class="hidden grid grid-cols-1 md:grid-cols-2 gap-6">
+                    ${createResourceListHTML('Total Raw Inputs', rawInputs, 'orange')}
+                    ${createResourceListHTML('Final Net Outputs', finalOutputs, 'green')}
                 </div>
                 <div id="summary-tab-buildings" class="hidden">
                     ${createBuildingSummaryHTML(buildingSummary, totalShards, totalLoops)}
                 </div>
-                <div id="summary-tab-resources" class="hidden grid grid-cols-1 md:grid-cols-2 gap-6">
-                    ${createResourceListHTML('Raw Inputs', rawInputList, 'c', 'orange')}
-                    ${createResourceListHTML('Final Outputs', finalOutputs, 'p', 'green')}
-                </div>
                 <div id="summary-tab-ledger" class="hidden">
                     ${createLedgerHTML(allItems, production, consumption)}
+                </div>
+                <div id="summary-tab-support" class="hidden">
+                    ${createSupportHTML()}
                 </div>
             </div>
         </div>
@@ -393,120 +407,156 @@ export function showSummaryModal() {
     modal.querySelector('#close-modal').addEventListener('click', closeModal);
 }
 
-// --- HTML Generation Helpers for Summary ---
-function createPowerOverviewHTML(prod, cons) {
+// --- HTML Generation Helpers for New Summary ---
+function createPowerSummaryHTML(prod, cons, producers, consumers) {
     const net = prod - cons;
+    const capacityUsage = prod > 0 ? (cons / prod) * 100 : 0;
     return `
-    <div class="bg-gray-900/50 p-4 rounded-lg lg:col-span-1">
-        <h3 class="font-bold text-lg text-cyan-400 mb-3 flex items-center gap-2">
-            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-            Power Overview
-        </h3>
-        <div class="text-sm space-y-2">
-            <p class="flex justify-between"><span>Consumption:</span> <span class="font-bold text-white">${cons.toFixed(2)} MW</span></p>
-            <p class="flex justify-between"><span>Production:</span> <span class="font-bold text-white">${prod.toFixed(2)} MW</span></p>
-            <p class="flex justify-between border-t border-gray-600 mt-2 pt-2"><span>Net:</span> <span class="font-bold ${net >= 0 ? 'text-green-400' : 'text-red-400'}">${net.toFixed(2)} MW</span></p>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="summary-card lg:col-span-1">
+            <div class="summary-card-header text-cyan-400">
+                <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                <span>Power Overview</span>
+            </div>
+            <div class="text-sm space-y-3">
+                <p class="flex justify-between"><span>Production:</span> <span class="font-bold text-white">${prod.toFixed(2)} MW</span></p>
+                <p class="flex justify-between"><span>Consumption:</span> <span class="font-bold text-white">${cons.toFixed(2)} MW</span></p>
+                <div class="pt-2">
+                    <div class="flex justify-between mb-1">
+                        <span class="font-bold">Capacity Usage</span>
+                        <span class="font-bold ${capacityUsage > 100 ? 'text-red-400' : 'text-white'}">${capacityUsage.toFixed(1)}%</span>
+                    </div>
+                    <div class="summary-progress-bar-bg"><div class="summary-progress-bar ${capacityUsage > 100 ? 'bg-red-500' : 'bg-cyan-500'}" style="width: ${Math.min(100, capacityUsage)}%"></div></div>
+                </div>
+                 <p class="flex justify-between border-t border-gray-600 mt-2 pt-3"><span>Net Balance:</span> <span class="font-bold text-lg ${net >= 0 ? 'text-green-400' : 'text-red-400'}">${net.toFixed(2)} MW</span></p>
+            </div>
+        </div>
+        <div class="summary-card">
+            ${createPowerBreakdownHTML('Power Producers', producers, prod, 'green')}
+        </div>
+        <div class="summary-card">
+            ${createPowerBreakdownHTML('Top Power Consumers', consumers, cons, 'orange')}
         </div>
     </div>`;
 }
 
 function createPowerBreakdownHTML(title, sources, total, color) {
-    const icon = title === 'Top Power Consumers' ? 
-        `<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>` :
-        `<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg>`;
-    
+    const icon = title.includes('Consumer') ? 
+        `<svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3" /></svg>` :
+        `<svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg>`;
     return `
-    <div class="bg-gray-900/50 p-4 rounded-lg">
-        <h3 class="font-bold text-lg text-${color}-400 mb-3 flex items-center gap-2">${icon} ${title}</h3>
-        <div class="text-xs space-y-3">
-            ${sources.map(([name, power]) => {
-                const percentage = total > 0 ? (power / total) * 100 : 0;
-                return `
-                <div>
-                    <div class="flex justify-between mb-1">
-                        <span class="text-gray-300 truncate">${name}</span>
-                        <span class="font-mono text-white">${power.toFixed(2)} MW</span>
-                    </div>
-                    <div class="w-full bg-gray-700 rounded-full h-2"><div class="bg-${color}-500 h-2 rounded-full" style="width: ${percentage}%"></div></div>
-                </div>`
-            }).join('') || `<p class="text-gray-500">No power ${title.toLowerCase().includes('consumer') ? 'consumers' : 'producers'}.</p>`}
+    <div class="summary-card-header text-${color}-400">${icon} <span>${title}</span></div>
+    <div class="text-xs space-y-3 overflow-y-auto pr-2 flex-1">
+        ${sources.map(([name, power]) => {
+            const percentage = total > 0 ? (power / total) * 100 : 0;
+            return `
+            <div>
+                <div class="flex justify-between mb-1">
+                    <span class="text-gray-300 truncate">${name}</span>
+                    <span class="font-mono text-white">${power.toFixed(2)} MW</span>
+                </div>
+                <div class="summary-progress-bar-bg"><div class="summary-progress-bar bg-${color}-500" style="width: ${percentage}%"></div></div>
+            </div>`;
+        }).join('') || `<p class="text-gray-500 text-center flex-1 flex items-center justify-center">No power ${title.toLowerCase().includes('consumer') ? 'consumers' : 'producers'}.</p>`}
+    </div>`;
+}
+
+function createResourceListHTML(title, items, color) {
+    const icon = title.includes('Input') ?
+        `<svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>` :
+        `<svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>`;
+    return `
+    <div class="summary-card">
+        <div class="summary-card-header text-${color}-400">${icon} <span>${title}</span></div>
+        <div class="text-sm space-y-2 flex-1 overflow-y-auto pr-2 grid grid-cols-1 sm:grid-cols-2 gap-x-6">
+        ${items.sort((a,b)=>a.name.localeCompare(b.name)).map(i => `
+            <div class="flex justify-between border-b border-gray-700/50 py-1.5">
+                <span class="text-gray-300">${i.name}</span>
+                <span class="font-mono text-white">${i.rate.toFixed(2)}</span>
+            </div>`).join('') || `<p class="text-gray-500 col-span-full text-center flex-1 flex items-center justify-center">None</p>`}
         </div>
     </div>`;
 }
 
 function createBuildingSummaryHTML(summary, shards, loops) {
     return `
-    <div class="bg-gray-900/50 p-4 rounded-lg">
-        <h3 class="font-bold text-lg text-yellow-400 mb-3 flex items-center gap-2">
-            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
-            Buildings & Upgrades
-        </h3>
-        <div class="text-sm grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div class="space-y-2">
-                 <p class="flex justify-between"><span>Power Shards:</span> <span class="font-bold text-white">${shards}</span></p>
-                 <p class="flex justify-between"><span>Somersloops:</span> <span class="font-bold text-white">${loops}</span></p>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="summary-card md:col-span-1">
+             <div class="summary-card-header text-yellow-400">
+                <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M2 13.5V6.3a2 2 0 012-2h4.5a2 2 0 012 2v2.4M2 13.5V18a2 2 0 002 2h4.5a2 2 0 002-2v-2.4M12.5 13.5V6.3a2 2 0 012-2h4.5a2 2 0 012 2v2.4M12.5 13.5V18a2 2 0 002 2h4.5a2 2 0 002-2v-2.4" /></svg>
+                <span>Factory Upgrades</span>
             </div>
-            <div class="space-y-1 text-xs md:col-span-2">
-                 <h4 class="font-bold text-gray-400 mb-1 text-right">Cards (Total Bldgs)</h4>
-                <div class="grid grid-cols-2 gap-x-6">
-                ${Object.entries(summary).sort(([a], [b]) => a.localeCompare(b)).map(([name, {cardCount, buildingCount}]) => {
-                    const displayCount = cardCount > 1 ? `${cardCount} <span class="text-xs text-gray-400">(${buildingCount})</span>` : `${buildingCount}`;
-                    return `<p class="flex justify-between border-b border-gray-700/50 py-1"><span>${name}</span> <span class="font-bold text-white">${displayCount}</span></p>`
-                }).join('')}
+             <div class="text-sm space-y-3">
+                <p class="flex justify-between text-lg"><span>Power Shards Used:</span> <span class="font-bold text-white">${shards}</span></p>
+                <p class="flex justify-between text-lg"><span>Somersloops Inserted:</span> <span class="font-bold text-white">${loops}</span></p>
+            </div>
+        </div>
+        <div class="summary-card md:col-span-2">
+             <div class="summary-card-header text-indigo-400">
+                <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                <span>Building Counts</span>
+            </div>
+            <div class="text-xs flex-1 overflow-y-auto pr-2">
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-x-6">
+                ${[...summary.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([name, {cardCount, buildingCount}]) => `
+                    <p class="flex justify-between border-b border-gray-700/50 py-1.5">
+                        <span class="text-gray-300 truncate">${name}</span> 
+                        <span class="font-bold text-white">${buildingCount}</span>
+                    </p>
+                `).join('')}
                 </div>
             </div>
         </div>
     </div>`;
 }
 
-function createResourceListHTML(title, items, key, color) {
-    const icon = title === 'Raw Inputs' ? 
-        `<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>` :
-        `<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" /></svg>`;
-
+function createLedgerHTML(allItems, production, consumption) {
     return `
-    <div class="bg-gray-900/50 p-4 rounded-lg flex flex-col">
-        <h3 class="font-bold text-lg text-${color}-400 mb-3 flex items-center gap-2">${icon} ${title}</h3>
-        <div class="text-sm space-y-2 flex-1 overflow-y-auto pr-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6">
-        ${items.sort((a,b)=>a.name.localeCompare(b.name)).map(i => `
-            <div class="flex justify-between border-b border-gray-700/50 py-1">
-                <span>${i.name}</span>
-                <span class="font-mono text-white">${i[key].toFixed(2)}</span>
-            </div>`).join('') || `<p class="text-gray-500 col-span-full">None</p>`}
+    <div class="summary-card">
+        <div class="summary-card-header text-purple-400">
+            <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+            <span>Full Item Ledger</span>
+        </div>
+        <div class="flex-1 overflow-y-auto pr-2 text-xs">
+            <table class="summary-table">
+                <thead>
+                    <tr><th>Item</th><th class="text-right">Produced /min</th><th class="text-right">Consumed /min</th><th class="text-right">Net /min</th></tr>
+                </thead>
+                <tbody>
+                ${[...allItems].sort().map(item => {
+                    const p = production.get(item) || 0;
+                    const c = consumption.get(item) || 0;
+                    const net = p - c;
+                    return `
+                    <tr>
+                        <td class="font-sans font-normal text-gray-300 truncate">${item}</td>
+                        <td class="text-right font-mono text-green-400">${p.toFixed(2)}</td>
+                        <td class="text-right font-mono text-orange-400">${c.toFixed(2)}</td>
+                        <td class="text-right font-mono font-bold ${net > 0.01 ? 'text-green-300' : net < -0.01 ? 'text-red-400' : 'text-gray-400'}">${net.toFixed(2)}</td>
+                    </tr>`;
+                }).join('')}
+                </tbody>
+            </table>
         </div>
     </div>`;
 }
 
-function createLedgerHTML(allItems, production, consumption) {
+function createSupportHTML() {
     return `
-    <div class="bg-gray-900/50 p-4 rounded-lg flex flex-col">
-        <h3 class="font-bold text-lg text-purple-400 mb-3 flex items-center gap-2">
-            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-            Full Item Ledger
-        </h3>
-        <div class="text-xs flex-1 flex flex-col">
-            <div class="grid grid-cols-4 font-bold border-b border-gray-600 pb-2 mb-2">
-                <span>Item</span>
-                <span class="text-right">Produced /min</span>
-                <span class="text-right">Consumed /min</span>
-                <span class="text-right">Net /min</span>
-            </div>
-            <div class="flex-1 overflow-y-auto pr-2">
-            ${[...allItems].sort().map(item => {
-                const p = production[item] || 0;
-                const c = consumption[item] || 0;
-                const net = p - c;
-                return `
-                <div class="grid grid-cols-4 font-mono py-1 border-b border-gray-700/50">
-                    <span class="font-sans font-normal text-gray-300 truncate">${item}</span>
-                    <span class="text-right text-green-400">${p.toFixed(2)}</span>
-                    <span class="text-right text-orange-400">${c.toFixed(2)}</span>
-                    <span class="text-right font-bold ${net > 0.01 ? 'text-green-300' : net < -0.01 ? 'text-red-400' : 'text-gray-400'}">${net.toFixed(2)}</span>
-                </div>`
-            }).join('')}
-            </div>
+    <div class="summary-card max-w-lg mx-auto text-center">
+        <div class="summary-card-header text-yellow-400 justify-center">
+             <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path d="M8 9.5A1.5 1.5 0 106.5 8 1.5 1.5 0 008 9.5zM11.5 8a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"/><path d="M2.368 1.623a.5.5 0 01.52-.323l14.28.006a.5.5 0 01.488.63l-1.393 5.438a.5.5 0 01-.488.369H4.156a.5.5 0 01-.488-.63L2.368 1.623zM2.81 8.614a1.5 1.5 0 01-1.488-.63L0 1.623a1.5 1.5 0 011.56-1.3l14.28.005a1.5 1.5 0 011.464 1.891l-1.393 5.438a1.5 1.5 0 01-1.464 1.108H4.32a1.5 1.5 0 01-1.51-1.074zM16 11.5a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 012 11.5V10h14v1.5z"/></svg>
+            <span>Support the Project</span>
         </div>
-    </div>`;
+        <div class="text-gray-300 space-y-4">
+            <p>If you find this tool useful, please consider supporting its development. Your support helps keep the project alive and allows for new features to be added!</p>
+            <p>Every little bit helps. Thank you!</p>
+            <a href="https://buymeacoffee.com/shinjuku1" target="_blank" rel="noopener noreferrer" class="inline-block bg-yellow-400 hover:bg-yellow-500 text-black font-bold py-3 px-6 text-lg rounded-lg transition-colors mt-4">
+                Buy Me a Coffee
+            </a>
+        </div>
+    </div>
+    `;
 }
 
 // --- Import Options Modal ---
@@ -647,4 +697,3 @@ export function showAutoBuildOptionsModal(onConfirm) {
     modal.querySelector('#cancel-autobuild').addEventListener('click', closeModal);
     modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
 }
-
