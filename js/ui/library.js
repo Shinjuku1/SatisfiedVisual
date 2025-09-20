@@ -75,13 +75,6 @@ export function populateLibrary() {
             }
         });
     }
-
-    const initialOpen = ['Constructor', 'Smelter'];
-    dom.library.querySelectorAll('.collapsible-header').forEach(header => {
-        if (initialOpen.includes(header.querySelector('span').textContent)) {
-            header.click();
-        }
-    });
 }
 
 /**

@@ -5,10 +5,10 @@
 import dom from '/SatisfiedVisual/js/dom.js';
 import state from '/SatisfiedVisual/js/state.js';
 import { createCard, deleteCards } from '/SatisfiedVisual/js/core/card.js';
-import { arrangeConnectedLayout, groupedArrangeLayout } from '/SatisfiedVisual/js/core/layout.js';
+import { groupedArrangeLayout } from '/SatisfiedVisual/js/core/layout.js';
 import { autoBuildInputsForCard } from '/SatisfiedVisual/js/core/autobuild.js';
-import { showModal, showAutoBuildOptionsModal } from '/SatisfiedVisual/js/ui/modals.js';
-import { autoBalanceChain } from '/SatisfiedVisual/js/core/balancer.js';
+import { showModal, showAutoBuildOptionsModal, showAutoBalanceOptionsModal } from '/SatisfiedVisual/js/ui/modals.js';
+import { renderCardSelections } from '/SatisfiedVisual/js/ui/render.js';
 
 /**
  * Creates and displays a context menu at the specified event coordinates.
@@ -27,12 +27,15 @@ export function showContextMenu(e, cardData) {
         Object.keys(cardData.recipe.inputs).some(inputName => {
             return ![...state.connections.values()].some(conn => conn.to.cardId === cardData.id && conn.to.itemName === inputName);
         });
+    
+    const isLocked = state.lockedCardIds.has(cardData.id);
 
     menu.innerHTML = `
         <button data-action="configure">Configure</button>
         <button data-action="duplicate">Duplicate</button>
+        <button data-action="toggle-lock">${isLocked ? 'Unlock Card' : 'Lock Card'}</button>
         <hr class="border-gray-600 my-1">
-        <button data-action="auto-arrange">Auto Arrange Chain</button> <!-- CONSOLIDATED BUTTON -->
+        <button data-action="auto-arrange">Auto Arrange Chain</button>
         <hr class="border-gray-600 my-1">
         <button data-action="autobalance" class="text-yellow-400">Auto Balance Chain</button>
         ${hasUnconnectedInputs ? '<button data-action="autobuild-inputs" class="text-cyan-400">Auto-Build Inputs</button>' : ''}
@@ -57,7 +60,7 @@ export function showContextMenu(e, cardData) {
     });
 
     menu.querySelector('[data-action="duplicate"]').addEventListener('click', () => {
-        const config = { buildings: cardData.buildings, powerShards: cardData.powerShards, powerShard: cardData.powerShard, somersloops: cardData.somersloops, isFueled: cardData.isFueled };
+        const config = { buildings: cardData.buildings, powerShards: cardData.powerShards, powerShard: cardData.powerShard, somersloops: cardData.somersloops, isFueled: cardData.isFueled, isLocked: cardData.isLocked };
         createCard(cardData.building, cardData.recipe, cardData.x + state.gridSize * 2, cardData.y + state.gridSize * 2, null, config);
         closeMenu();
     });
@@ -81,7 +84,21 @@ export function showContextMenu(e, cardData) {
     const autoBalanceBtn = menu.querySelector('[data-action="autobalance"]');
     if (autoBalanceBtn) {
         autoBalanceBtn.addEventListener('click', () => {
-            autoBalanceChain(cardData); 
+            showAutoBalanceOptionsModal(cardData); // Show new options modal
+            closeMenu();
+        });
+    }
+
+    const toggleLockBtn = menu.querySelector('[data-action="toggle-lock"]');
+    if (toggleLockBtn) {
+        toggleLockBtn.addEventListener('click', () => {
+            cardData.isLocked = !isLocked;
+            if (cardData.isLocked) {
+                state.lockedCardIds.add(cardData.id);
+            } else {
+                state.lockedCardIds.delete(cardData.id);
+            }
+            renderCardSelections(); // Re-render to show/hide lock icon
             closeMenu();
         });
     }
@@ -89,4 +106,3 @@ export function showContextMenu(e, cardData) {
     setTimeout(() => document.addEventListener('click', closeMenu, { once: true }), 0);
 
 }
-

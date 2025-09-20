@@ -32,12 +32,14 @@ const state = {
     panning: false,
     dragInfo: null,
     isDrawingConnection: false,
+    connectionIsDragging: false, // New state to track drag vs. click for connections
     isSelecting: false,
     pastePreview: null,
     selectionBoxStart: {x: 0, y: 0},
     connectionStartNode: null,
     selectedConnectionIds: new Set(),
     selectedCardIds: new Set(),
+    lockedCardIds: new Set(), // NEW: To track locked cards
     clipboard: null,
     nextCardId: 0,
     nextConnectionId: 0,
@@ -50,6 +52,10 @@ const state = {
         useSAM: true,
         buildStrategy: 'simple', // 'simple' or 'resourceSaver'
     },
+    autoBalanceOptions: { // NEW: User preferences for balancing
+        strategy: 'buildingsFirst', // 'buildingsFirst' or 'shardsFirst'
+        clearLoops: false,
+    },
     // Initialize with all alternate recipes unlocked by default.
     unlockedRecipes: getDefaultUnlockedRecipes(),
     highlightedRecipeKey: null,
@@ -57,3 +63,4 @@ const state = {
 
 
 export default state;
+

@@ -10,6 +10,7 @@ import { SOMERSLOOP_SLOTS } from '/SatisfiedVisual/js/constants.js';
 import { updateAllCalculations } from '/SatisfiedVisual/js/core/calculations.js';
 import { startBlueprintPaste } from '/SatisfiedVisual/js/core/io.js';
 import { loadState } from '/SatisfiedVisual/js/core/io.js';
+import { autoBalanceChain } from '/SatisfiedVisual/js/core/balancer.js';
 
 const USER_SETTINGS_KEY = 'satisfactoryPlannerSettingsV1';
 
@@ -371,7 +372,7 @@ export function showSummaryModal() {
             </div>
             <div class="flex-1 overflow-y-auto p-6 space-y-6">
                 <div id="summary-tab-power">
-                     ${createPowerSummaryHTML(totalBoostedPower, powerConsumption, topPowerProducers, topPowerConsumers)}
+                    ${createPowerSummaryHTML(totalBoostedPower, powerConsumption, topPowerProducers, topPowerConsumers)}
                 </div>
                 <div id="summary-tab-resources" class="hidden grid grid-cols-1 md:grid-cols-2 gap-6">
                     ${createResourceListHTML('Total Raw Inputs', rawInputs, 'orange')}
@@ -695,5 +696,72 @@ export function showAutoBuildOptionsModal(onConfirm) {
     });
 
     modal.querySelector('#cancel-autobuild').addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+}
+
+// --- NEW: Auto-Balance Options Modal ---
+export function showAutoBalanceOptionsModal(cardData) {
+    dom.modalContainer.innerHTML = '';
+    const modal = document.createElement('div');
+    modal.className = 'modal-backdrop';
+    modal.innerHTML = `
+        <div class="bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6">
+            <h2 class="text-xl font-bold mb-4">Auto-Balance Options</h2>
+            <p class="text-sm text-gray-400 mb-6">The chain will be balanced around any locked cards. The settings below apply to all <span class="font-bold text-white">unlocked</span> cards.</p>
+            
+            <div class="space-y-4">
+                <div class="p-3 rounded-md bg-gray-900/50">
+                    <h3 class="font-medium text-white mb-3">Balancing Strategy</h3>
+                    <div class="space-y-2 text-sm">
+                        <label class="flex items-center gap-3 cursor-pointer">
+                            <input type="radio" name="balance-strategy" value="buildingsFirst" class="h-4 w-4 text-indigo-500 focus:ring-indigo-600" ${state.autoBalanceOptions.strategy === 'buildingsFirst' ? 'checked' : ''}>
+                            <div>
+                                <p class="text-gray-200">Prioritize Buildings</p>
+                                <p class="text-gray-400 text-xs">Adds new buildings before overclocking beyond 100%.</p>
+                            </div>
+                        </label>
+                        <label class="flex items-center gap-3 cursor-pointer">
+                            <input type="radio" name="balance-strategy" value="shardsFirst" class="h-4 w-4 text-indigo-500 focus:ring-indigo-600" ${state.autoBalanceOptions.strategy === 'shardsFirst' ? 'checked' : ''}>
+                            <div>
+                                <p class="text-gray-200">Prioritize Power Shards</p>
+                                <p class="text-gray-400 text-xs">Overclocks up to 250% before adding new buildings.</p>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <label for="clear-loops-toggle" class="flex items-center justify-between p-3 rounded-md bg-gray-900/50 cursor-pointer">
+                    <span class="font-medium text-white">Reset Somersloops</span>
+                     <input type="checkbox" id="clear-loops-toggle" class="h-5 w-5 rounded text-indigo-500 focus:ring-indigo-600" ${state.autoBalanceOptions.clearLoops ? 'checked' : ''}>
+                </label>
+            </div>
+
+            <div class="mt-6 flex gap-4">
+                <button id="cancel-autobalance" class="w-full bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded">Cancel</button>
+                <button id="confirm-autobalance" class="w-full bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded">Balance</button>
+            </div>
+        </div>
+    `;
+    dom.modalContainer.appendChild(modal);
+
+    const closeModal = () => dom.modalContainer.innerHTML = '';
+    
+    modal.querySelector('#confirm-autobalance').addEventListener('click', () => {
+        const selectedStrategy = modal.querySelector('input[name="balance-strategy"]:checked').value;
+        const clearLoops = modal.querySelector('#clear-loops-toggle').checked;
+
+        // Persist choices for next time
+        state.autoBalanceOptions.strategy = selectedStrategy;
+        state.autoBalanceOptions.clearLoops = clearLoops;
+        
+        const options = {
+            strategy: selectedStrategy,
+            clearLoops: clearLoops
+        };
+        autoBalanceChain(cardData, options); 
+        closeModal();
+    });
+
+    modal.querySelector('#cancel-autobalance').addEventListener('click', closeModal);
     modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
 }

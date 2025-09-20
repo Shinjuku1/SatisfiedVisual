@@ -1,6 +1,6 @@
 /**
  * This file (js/events/listeners.js) sets up all event listeners for the application and defines their handlers.
- * It has been updated to support both click-click and drag-and-drop connection creation.
+ * It has been updated to support the new paste and blueprint import flow, and to restore connection line selection.
  */
 import dom from '/SatisfiedVisual/js/dom.js';
 import state from '/SatisfiedVisual/js/state.js';
@@ -23,14 +23,14 @@ export function initializeEventListeners() {
     document.addEventListener('mouseup', handleMouseUp);
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
+    // Disable the default browser context menu across the entire application.
+    window.addEventListener('contextmenu', e => e.preventDefault());
     
     // --- Canvas Listeners ---
     dom.canvas.addEventListener('mousedown', handleCanvasMouseDown);
     dom.canvas.addEventListener('wheel', handleCanvasWheel, { passive: false });
     dom.canvas.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; });
     dom.canvas.addEventListener('drop', handleCanvasDrop);
-    // Prevent the default browser context menu on the canvas itself
-    dom.canvas.addEventListener('contextmenu', e => e.preventDefault());
 
 
     // --- Header & Sidebar Listeners ---
@@ -115,6 +115,7 @@ export function cancelConnectionDrawing() {
     document.getElementById('temp-connection-line')?.remove();
     state.isDrawingConnection = false;
     state.connectionStartNode = null;
+    state.connectionIsDragging = false;
 }
 
 
@@ -138,6 +139,7 @@ function handleMouseMove(e) {
     } else if (state.dragInfo) {
         handleCardDrag(e);
     } else if (state.isDrawingConnection) {
+        state.connectionIsDragging = true; // Flag that we are dragging
         handleConnectionDraw(e);
     } else if (state.pastePreview) {
         const worldPos = screenToWorld(e.clientX, e.clientY);
@@ -164,33 +166,34 @@ function handleMouseUp(e) {
         state.dragInfo = null;
         updateAllCalculations();
     }
-    // If we release the mouse while drawing, check if it's a valid drop target for drag-and-drop.
-    if (state.isDrawingConnection) {
-        const endNode = e.target.closest('.connector-node');
-        // If we release over a different, valid node, it's a successful drag-and-drop.
-        if (endNode && endNode !== state.connectionStartNode) {
-            completeConnection(state.connectionStartNode, endNode);
-            cancelConnectionDrawing();
-        }
-        // If we release over the background, or the same node, we do NOT cancel here.
-        // This allows the "click-click" flow to continue.
-        // Cancellation for click-click happens on the next mousedown on the background or another node.
+    // If we release the mouse while drawing AND we were dragging, end the connection.
+    if (state.isDrawingConnection && state.connectionIsDragging) {
+        handleConnectionEnd(e);
+    } else if (state.isDrawingConnection && !state.connectionIsDragging) {
+        // This is a click-to-complete action, wait for the next click.
+        // The actual completion is handled in handleCanvasMouseDown when clicking the end node.
     }
 }
 
 function handleKeyDown(e) {
+    // NEW: Universal Escape key handler for modals and other actions
+    if (e.key === 'Escape') {
+        if (dom.modalContainer.innerHTML !== '') {
+            dom.modalContainer.innerHTML = ''; // Close any open modal
+            return;
+        }
+        if (state.pastePreview) {
+            cancelPaste();
+            return;
+        }
+        if (state.isDrawingConnection) {
+            cancelConnectionDrawing();
+            return;
+        }
+    }
+
     if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'SELECT') return;
 
-    if (state.pastePreview && e.key === 'Escape') {
-        cancelPaste();
-        return;
-    }
-
-    if (state.isDrawingConnection && e.key === 'Escape') {
-        cancelConnectionDrawing();
-        return;
-    }
-    
     if (e.code === 'Space' && !state.panning) {
         e.preventDefault();
         dom.canvas.style.cursor = 'grab';
@@ -229,6 +232,13 @@ function handleCanvasMouseDown(e) {
         finalizePaste(e);
         return;
     }
+
+    // New logic for click-to-connect
+    if (state.isDrawingConnection && e.target.classList.contains('connector-node')) {
+        handleConnectionEnd(e);
+        return;
+    }
+
     // If drawing a connection and clicking the background, cancel it.
     if (e.button === 0 && state.isDrawingConnection && !e.target.closest('.placed-card')) {
         cancelConnectionDrawing();
@@ -369,6 +379,18 @@ function handleConnectionDraw(e) {
     tempLine.setAttribute('d', d);
 }
 
+function handleConnectionEnd(e) {
+    const endNode = e.target.closest('.connector-node');
+    if (!endNode) { // Clicked on something that isn't a node
+        cancelConnectionDrawing();
+        return;
+    }
+
+    const startNode = state.connectionStartNode;
+    completeConnection(startNode, endNode);
+    cancelConnectionDrawing(); // Always cancel after an attempt.
+}
+
 function handleSelectionBoxEnd(e) {
     state.isSelecting = false;
     const boxRect = dom.selectionBox.getBoundingClientRect();
@@ -387,7 +409,7 @@ function handleSelectionBoxEnd(e) {
             }
         });
 
-        // RESTORED: Logic to select connection lines with the lasso
+        // REVERTED: Use the more reliable bounding box intersection logic
         dom.svgGroup.querySelectorAll('.connection-line').forEach(line => {
             const lineRect = line.getBoundingClientRect();
             const intersects = (
@@ -407,3 +429,4 @@ function handleSelectionBoxEnd(e) {
         renderConnections();
     }
 }
+

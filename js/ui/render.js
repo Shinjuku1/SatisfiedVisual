@@ -169,14 +169,31 @@ export function renderViewport() {
 }
 
 /**
- * Toggles the 'selected' class on cards based on the current selection state.
+ * Toggles the 'selected' class and lock indicator on cards.
  */
 export function renderCardSelections() {
     state.placedCards.forEach((card, id) => {
-        card.element.classList.toggle('selected', state.selectedCardIds.has(id));
+        const isSelected = state.selectedCardIds.has(id);
+        const isLocked = state.lockedCardIds.has(id);
+
+        // Handle selection and lock styles together for clarity
+        card.element.classList.toggle('selected', isSelected && !isLocked);
+        card.element.classList.toggle('locked', isLocked); // Add a 'locked' class for styling
+
+        // Handle lock indicator visibility
+        const lockIndicator = card.element.querySelector('[data-indicator="lock"]');
+        if (lockIndicator) {
+             if (isLocked) {
+                lockIndicator.classList.remove('hidden');
+            } else {
+                lockIndicator.classList.add('hidden');
+            }
+        }
+
+        // Handle scrolling text on selection
         card.element.querySelectorAll('.io-name').forEach(nameEl => {
             const wrapper = nameEl.parentElement;
-            if (state.selectedCardIds.has(id) && wrapper.scrollWidth > wrapper.clientWidth) {
+            if (isSelected && wrapper.scrollWidth > wrapper.clientWidth) {
                 nameEl.classList.add('scrolling-ticker');
             } else {
                 nameEl.classList.remove('scrolling-ticker');
@@ -211,3 +228,4 @@ export function renderHighlights() {
     }
     renderConnections();
 }
+

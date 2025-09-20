@@ -6,8 +6,9 @@ import { initializeEventListeners } from '/SatisfiedVisual/js/events/listeners.j
 import { populateLibrary, initializeFilter } from '/SatisfiedVisual/js/ui/library.js';
 import { tryLoadLastSession } from '/SatisfiedVisual/js/core/io.js';
 import { updateAllCalculations } from '/SatisfiedVisual/js/core/calculations.js';
-import { renderViewport } from '/SatisfiedVisual/js/ui/render.js';
+import { renderViewport, renderConnections } from '/SatisfiedVisual/js/ui/render.js';
 import state from '/SatisfiedVisual/js/state.js';
+import dom from '/SatisfiedVisual/js/dom.js';
 
 const USER_SETTINGS_KEY = 'satisfactoryPlannerSettingsV1';
 
@@ -40,9 +41,18 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeFilter(); 
     initializeEventListeners();
     
+    // Ensure the sidebar is open, but its internal categories are collapsed on load.
+    dom.sidebar.classList.remove('collapsed');
+    dom.sidebarToggleBtn.classList.remove('collapsed');
+
     // Load saved data and perform initial render
     tryLoadLastSession();
     updateAllCalculations();
     renderViewport();
+    
+    // FIX: Delay the initial connection render slightly to ensure card positions are finalized by the browser.
+    setTimeout(() => {
+        renderConnections();
+    }, 50); 
 });
 

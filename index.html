@@ -78,6 +78,12 @@
         .placed-card:hover {
             border-color: var(--accent-indigo);
         }
+        /* NEW: Style for locked cards */
+        .placed-card.locked {
+            border-color: var(--accent-yellow);
+            box-shadow: 0 0 15px rgba(245, 158, 11, 0.6);
+            z-index: 11; /* Higher than selected */
+        }
         .connector-node {
             width: 24px; /* Larger clickable area */
             height: 24px;
@@ -393,4 +399,3 @@
     <script type="module" src="/SatisfiedVisual/js/main.js"></script>
 </body>
 </html>
-
