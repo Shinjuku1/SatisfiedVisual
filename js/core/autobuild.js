@@ -1,7 +1,7 @@
 /**
  * This file (js/core/autoBuild.js) contains the logic for the "Auto-Build Inputs" feature.
- * It has been significantly updated to include different build strategies, such as prioritizing
- * raw resource efficiency, and to consolidate production into existing cards instead of creating duplicates.
+ * It has been significantly updated to include different build strategies, consolidate production,
+ * and intelligently route byproducts to satisfy demands before creating new producers.
  */
 import state from '/SatisfiedVisual/js/state.js';
 import { recipeData } from '/SatisfiedVisual/js/data/recipes.js';
@@ -166,34 +166,88 @@ export function autoBuildInputsForCard(targetCard, options) {
     while (iteration < MAX_ITERATIONS) {
         iteration++;
         
+        updateAllCalculations(); 
         const deficits = new Map();
+        const surpluses = new Map();
+
+        // 1. Calculate all deficits and surpluses in the current chain
         chainCardIds.forEach(cardId => {
             const card = state.placedCards.get(cardId);
-            if (!card || !card.inputs) return;
-            for (const inputName in card.inputs) {
-                if (![...state.connections.values()].some(c => c.to.cardId === card.id && c.to.itemName === inputName)) {
+            if (!card) return;
+
+            Object.entries(card.inputs).forEach(([inputName, requiredRate]) => {
+                let suppliedRate = 0;
+                state.connections.forEach(conn => {
+                    if (conn.to.cardId === cardId && conn.to.itemName === inputName) {
+                        const sourceCard = state.placedCards.get(conn.from.cardId);
+                        suppliedRate += sourceCard.outputs[conn.from.itemName] || 0;
+                    }
+                });
+                
+                const deficitAmount = requiredRate - suppliedRate;
+                if (deficitAmount > 0.001) {
                     if (!deficits.has(inputName)) deficits.set(inputName, { totalDemand: 0, consumers: [] });
                     const deficit = deficits.get(inputName);
-                    deficit.totalDemand += card.inputs[inputName];
-                    deficit.consumers.push({ cardId: card.id, itemName: inputName });
+                    deficit.totalDemand += deficitAmount;
+                    deficit.consumers.push({ cardId: card.id, itemName: inputName, required: deficitAmount });
                 }
-            }
-        });
+            });
 
+            Object.entries(card.outputs).forEach(([outputName, outputRate]) => {
+                let consumedRate = 0;
+                state.connections.forEach(conn => {
+                    if (conn.from.cardId === cardId && conn.from.itemName === outputName) {
+                        const consumerCard = state.placedCards.get(conn.to.cardId);
+                        if (consumerCard) consumedRate += consumerCard.inputs[conn.to.itemName] || 0;
+                    }
+                });
+                const surplusAmount = outputRate - consumedRate;
+                if (surplusAmount > 0.001) {
+                    if (!surpluses.has(outputName)) surpluses.set(outputName, { amount: 0, producers: [] });
+                    const surplus = surpluses.get(outputName);
+                    surplus.amount += surplusAmount;
+                    surplus.producers.push({ cardId: card.id, itemName: outputName, available: surplusAmount });
+                }
+            });
+        });
+        
         if (deficits.size === 0) break;
 
+        // 2. Try to satisfy deficits with existing surpluses first
+        for (const [item, deficitData] of deficits) {
+            if (surpluses.has(item)) {
+                const surplus = surpluses.get(item);
+                for (const consumer of deficitData.consumers) {
+                    const validProducer = surplus.producers.find(p => p.cardId !== consumer.cardId && p.available > 0.001);
+                    if (validProducer) {
+                        const connId = `conn-${state.nextConnectionId++}`;
+                        state.connections.set(connId, {
+                            from: { cardId: validProducer.cardId, itemName: validProducer.itemName },
+                            to: { cardId: consumer.cardId, itemName: consumer.itemName }
+                        });
+                        const amountToUse = Math.min(consumer.required, validProducer.available);
+                        consumer.required -= amountToUse;
+                        validProducer.available -= amountToUse;
+                    }
+                }
+            }
+        }
+
+        // 3. Build for any remaining deficits
         const producersForConnecting = new Map();
         let cardsCreatedThisIteration = 0;
 
         for (const [item, data] of deficits) {
+            const remainingDemand = data.consumers.reduce((sum, c) => sum + c.required, 0);
+            if (remainingDemand < 0.001) continue;
+            
             const recipeInfo = RAW_RESOURCES.has(item) ? findExtractorForResource(item) : findProductionRecipe(item, options);
             if (!recipeInfo) continue;
 
             const { building, recipe } = recipeInfo;
             
-            // --- NEW: Consolidation Logic ---
             let existingCard = null;
-            // Search the entire factory, not just the current chain, for consolidation opportunities.
+            // Find if a consolidated producer for this item already exists
             for (const card of state.placedCards.values()) {
                 if (card.recipe.name === recipe.name && card.building === building) {
                     existingCard = card;
@@ -202,18 +256,16 @@ export function autoBuildInputsForCard(targetCard, options) {
             }
 
             if (existingCard) {
-                // An existing card was found. Update it instead of creating a new one.
-                let newTotalDemand = data.totalDemand;
-                // Add demand from consumers already connected to this card.
-                state.connections.forEach(conn => {
-                    if (conn.from.cardId === existingCard.id && conn.from.itemName === item) {
-                        const consumer = state.placedCards.get(conn.to.cardId);
-                        if(consumer && consumer.inputs) newTotalDemand += consumer.inputs[item] || 0;
+                let totalDemandForItem = 0;
+                chainCardIds.forEach(id => {
+                    const card = state.placedCards.get(id);
+                    if(card && card.inputs[item]){
+                        totalDemandForItem += card.inputs[item];
                     }
                 });
 
                 const baseRate = recipe.outputs[item];
-                const required = newTotalDemand * 1.001;
+                const required = totalDemandForItem * 1.001; // Recalculate based on total chain need
                 
                 let buildings = existingCard.buildings;
                 let clock = (required / (baseRate * buildings)) * 100;
@@ -225,15 +277,12 @@ export function autoBuildInputsForCard(targetCard, options) {
 
                 existingCard.buildings = buildings;
                 existingCard.powerShard = round(Math.min(250, Math.max(0.1, clock)), 3);
-                if (clock > 200) existingCard.powerShards = 3; else if (clock > 150) existingCard.powerShards = 2; else if (clock > 100) existingCard.powerShards = 1; else existingCard.powerShards = 0;
                 
                 producersForConnecting.set(item, existingCard.id);
-                // Ensure this existing card is now considered part of the chain for layout purposes.
                 if (!chainCardIds.has(existingCard.id)) chainCardIds.add(existingCard.id);
 
-            } else {
-                // No existing card found, create a new one.
-                const required = data.totalDemand * 1.001;
+            } else { // Create a new producer card
+                const required = remainingDemand * 1.001;
                 const baseRate = recipe.outputs[item];
                 let buildings, clock, powerShards = 0;
 
@@ -252,7 +301,7 @@ export function autoBuildInputsForCard(targetCard, options) {
                 clock = round(Math.min(250, Math.max(0.1, clock)), 3);
                 if (clock > 200) powerShards = 3; else if (clock > 150) powerShards = 2; else if (clock > 100) powerShards = 1;
 
-                const xPos = targetCard.x - (450 * iteration);
+                const xPos = targetCard.x - (450 * (iteration + 1));
                 const yPos = targetCard.y + (producersForConnecting.size * 350) - ((deficits.size - 1) * 175);
                 
                 const newCardId = `card-${state.nextCardId++}`;
@@ -269,16 +318,20 @@ export function autoBuildInputsForCard(targetCard, options) {
             const consumers = deficits.get(outputItem)?.consumers;
             if (consumers) {
                 consumers.forEach(consumer => {
-                    const connId = `conn-${state.nextConnectionId++}`;
-                    state.connections.set(connId, {
-                        from: { cardId: producerId, itemName: outputItem },
-                        to: { cardId: consumer.cardId, itemName: consumer.itemName }
-                    });
+                     // Check if not already connected from another pass
+                    const alreadyConnected = [...state.connections.values()].some(conn => 
+                        conn.to.cardId === consumer.cardId && conn.to.itemName === consumer.itemName
+                    );
+                    if (!alreadyConnected) {
+                        const connId = `conn-${state.nextConnectionId++}`;
+                        state.connections.set(connId, {
+                            from: { cardId: producerId, itemName: outputItem },
+                            to: { cardId: consumer.cardId, itemName: consumer.itemName }
+                        });
+                    }
                 });
             }
         });
-        
-        updateAllCalculations();
     }
 
     // --- FINALIZATION ---

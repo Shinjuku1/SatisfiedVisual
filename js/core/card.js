@@ -11,6 +11,10 @@ import { updateCardCalculations, updateAllCalculations } from '/SatisfiedVisual/
 import { showModal } from '/SatisfiedVisual/js/ui/modals.js';
 import { showContextMenu } from '/SatisfiedVisual/js/ui/contextMenu.js';
 import { renderCardSelections, renderSelectionSummary, renderConnections, renderHighlights } from '/SatisfiedVisual/js/ui/render.js';
+import { completeConnection, cancelConnectionDrawing } from '/SatisfiedVisual/js/events/listeners.js';
+
+// --- CONSTANTS ---
+const altIndicatorSVG = `<svg class="alt-indicator" fill="currentColor" viewBox="0 0 20 20"><path d="M10 3.5a1.5 1.5 0 01.936 2.65l-3.232 3.232a1.5 1.5 0 01-2.65-1.936L8.286 4.214A1.5 1.5 0 0110 3.5zm5.121 1.879a1.5 1.5 0 011.936 2.65l-3.232 3.232a1.5 1.5 0 01-2.65-1.936l3.946-3.946zM3.5 10a1.5 1.5 0 012.65-.936l3.232 3.232a1.5 1.5 0 01-1.936 2.65L3.504 11.714A1.5 1.5 0 013.5 10zm11.214 1.714a1.5 1.5 0 012.65 1.936l-3.232 3.232a1.5 1.5 0 01-2.65-1.936l3.232-3.232z"></path></svg>`;
 
 /**
  * Creates a new card element and its associated data object.
@@ -48,6 +52,7 @@ export function createCard(buildingName, recipe, worldX, worldY, id = null, conf
     const buildingInfo = state.buildingsMap.get(buildingName);
     const isPowerGenerator = buildingInfo && buildingInfo.category === 'Power';
     const isExtractor = buildingInfo && buildingInfo.category === 'Extraction';
+    const altIndicatorHTML = recipe.isAlternate ? altIndicatorSVG : '';
 
     if (buildingName === 'Alien Power Augmenter') {
         card.innerHTML = `
@@ -76,7 +81,7 @@ export function createCard(buildingName, recipe, worldX, worldY, id = null, conf
                         <button data-action="delete" title="Delete Card" class="text-gray-400 hover:text-red-500">${xSVG}</button>
                     </div>
                     <h2 class="text-base font-bold text-white leading-tight pr-12">${buildingName}</h2>
-                    <p class="text-xs font-medium text-indigo-400" data-recipe-name-display>${recipe.name}</p>
+                    <p class="text-xs font-medium text-indigo-400 flex items-center" data-recipe-name-display>${recipe.name} ${altIndicatorHTML}</p>
                 </div>
                 <div class="grid grid-cols-2 gap-3 text-xs px-3 card-io-section">
                     <div>
@@ -152,7 +157,7 @@ export function createCard(buildingName, recipe, worldX, worldY, id = null, conf
                         <button data-action="configure" title="Configure" class="text-gray-400 hover:text-white">${gearSVG}</button>
                         <button data-action="delete" title="Delete Card" class="text-gray-400 hover:text-red-500">${xSVG}</button>
                     </div>
-                    <h2 class="text-base font-bold text-white leading-tight pr-12">${recipe.name}</h2>
+                    <h2 class="text-base font-bold text-white leading-tight pr-12 flex items-center">${recipe.name} ${altIndicatorHTML}</h2>
                     <p class="text-xs font-medium text-indigo-400">${buildingName}</p>
                 </div>
                 <div class="grid grid-cols-2 gap-3 text-xs px-3 card-io-section">
@@ -234,7 +239,9 @@ function addCardEventListeners(cardData) {
             const newRecipe = recipeData.recipes[cardData.building].find(r => r.name === newRecipeName);
             if (newRecipe) {
                 cardData.recipe = newRecipe;
-                element.querySelector('[data-recipe-name-display]').textContent = newRecipe.name;
+                const recipeNameDisplay = element.querySelector('[data-recipe-name-display]');
+                const altIndicatorHTML = newRecipe.isAlternate ? altIndicatorSVG : '';
+                recipeNameDisplay.innerHTML = `${newRecipe.name} ${altIndicatorHTML}`;
                 renderPowerCardIO(cardData);
                 updateAllCalculations();
             }
@@ -250,9 +257,17 @@ function addCardEventListeners(cardData) {
         }
         
         if (e.target.classList.contains('connector-node')) {
-            state.isDrawingConnection = true;
-            state.connectionStartNode = e.target;
-            return;
+            e.stopPropagation(); // Prevent canvas handlers
+            if (state.isDrawingConnection) {
+                // This is the second mousedown, so we are completing the connection.
+                completeConnection(state.connectionStartNode, e.target);
+                cancelConnectionDrawing();
+            } else {
+                // This is the first mousedown, so we start the connection process.
+                state.isDrawingConnection = true;
+                state.connectionStartNode = e.target;
+            }
+            return; // Stop further event processing
         }
 
         if (e.button === 0 && !e.target.closest('input, button, select, select option')) {
@@ -326,3 +341,4 @@ export function renderPowerCardIO(cardData) {
     outputsContainer.innerHTML = outputsHTML;
 
 }
+

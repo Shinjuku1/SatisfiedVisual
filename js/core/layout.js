@@ -211,26 +211,90 @@ export function arrangeConnectedLayout(anchorCard, cardIdsToArrange) {
     assignCoordinates(layers, anchorCard);
 }
 
+/**
+ * Assigns cards to layers (columns) in a way that handles cycles in the graph.
+ * @param {Set<string>} cardIds - The IDs of the cards to arrange.
+ * @returns {{layers: Array<Array<string>>, cardToLayerMap: Map<string, object>}}
+ */
 function assignLayers(cardIds) {
     const layers = [];
     const cardToLayerMap = new Map();
-    const sortedCardIds = topologicalSort(cardIds);
+    const unplaced = new Set(cardIds);
+    let rank = 0;
 
-    for (const cardId of sortedCardIds) {
-        let maxRank = -1;
-        state.connections.forEach(conn => {
-            if (conn.to.cardId === cardId && cardToLayerMap.has(conn.from.cardId)) {
-                maxRank = Math.max(maxRank, cardToLayerMap.get(conn.from.cardId).layer);
-            }
-        });
-        const rank = maxRank + 1;
+    // Create a temporary, mutable map of predecessors for efficiency
+    const predecessors = new Map();
+    cardIds.forEach(id => predecessors.set(id, new Set()));
+    state.connections.forEach(conn => {
+        if (cardIds.has(conn.from.cardId) && cardIds.has(conn.to.cardId)) {
+            predecessors.get(conn.to.cardId).add(conn.from.cardId);
+        }
+    });
+
+    while (unplaced.size > 0) {
+        const placeableInThisRank = [];
         
-        if (!layers[rank]) layers[rank] = [];
-        cardToLayerMap.set(cardId, { layer: rank, pos: layers[rank].length });
-        layers[rank].push(cardId);
+        // Find all nodes whose predecessors have all been placed
+        for (const cardId of unplaced) {
+            const preds = predecessors.get(cardId);
+            let canPlace = true;
+            for (const predId of preds) {
+                if (unplaced.has(predId)) { // If any predecessor is still unplaced
+                    canPlace = false;
+                    break;
+                }
+            }
+            if (canPlace) {
+                placeableInThisRank.push(cardId);
+            }
+        }
+
+        // If no nodes can be placed, there's a cycle.
+        // Break the cycle by placing the remaining node with the fewest unplaced predecessors.
+        if (placeableInThisRank.length === 0 && unplaced.size > 0) {
+            let bestNode = null;
+            let minUnplacedPreds = Infinity;
+
+            for (const cardId of unplaced) {
+                const preds = predecessors.get(cardId);
+                let unplacedCount = 0;
+                for (const predId of preds) {
+                    if (unplaced.has(predId)) {
+                        unplacedCount++;
+                    }
+                }
+                if (unplacedCount < minUnplacedPreds) {
+                    minUnplacedPreds = unplacedCount;
+                    bestNode = cardId;
+                }
+            }
+            if (bestNode) {
+                 placeableInThisRank.push(bestNode);
+            } else {
+                 // Fallback if something goes wrong, just grab the first one
+                 placeableInThisRank.push(unplaced.values().next().value);
+            }
+        }
+
+        // If we still can't place anything, abort to prevent an infinite loop
+        if (placeableInThisRank.length === 0) {
+            console.error("Auto-arrange failed: could not resolve graph layout.", unplaced);
+            break;
+        }
+        
+        // Place the determined nodes in the current layer
+        layers[rank] = placeableInThisRank;
+        placeableInThisRank.forEach((cardId, index) => {
+            cardToLayerMap.set(cardId, { layer: rank, pos: index });
+            unplaced.delete(cardId);
+        });
+
+        rank++;
     }
+
     return { layers, cardToLayerMap };
 }
+
 
 function minimizeCrossings(layers, cardToLayerMap) {
     for (let i = 0; i < 4; i++) {
@@ -244,9 +308,27 @@ function minimizeCrossings(layers, cardToLayerMap) {
 }
 
 function assignCoordinates(layers, anchorCard) {
+    // Find the layer of the anchor card
+    let anchorLayerIndex = -1;
+    for (let i = 0; i < layers.length; i++) {
+        if (layers[i].includes(anchorCard.id)) {
+            anchorLayerIndex = i;
+            break;
+        }
+    }
+
+    // Fallback if anchor isn't found (should not happen in normal operation)
+    if (anchorLayerIndex === -1) {
+        console.warn("Anchor card not found in any layer. Defaulting to simple layout.");
+        anchorLayerIndex = 0;
+    }
+
     layers.forEach((layer, layerIndex) => {
         const layerHeight = layer.length * (CARD_HEIGHT + ROW_SPACING) - ROW_SPACING;
-        const xPos = anchorCard.x + layerIndex * (CARD_WIDTH + COL_SPACING);
+        
+        // Calculate xPos relative to the anchor layer's position
+        const layerOffset = layerIndex - anchorLayerIndex;
+        const xPos = anchorCard.x + layerOffset * (CARD_WIDTH + COL_SPACING);
         
         layer.forEach((cardId, cardIndex) => {
             const yPos = anchorCard.y - (layerHeight / 2) + cardIndex * (CARD_HEIGHT + ROW_SPACING);
@@ -302,30 +384,6 @@ function findFinalProductCards(chainCardIds) {
         finalProductIds.add(lastCardId);
     }
     return finalProductIds;
-}
-
-function topologicalSort(cardIds) {
-    const sorted = [];
-    const inDegree = new Map();
-    const adj = new Map();
-    cardIds.forEach(id => { inDegree.set(id, 0); adj.set(id, []); });
-    state.connections.forEach(conn => {
-        if (cardIds.has(conn.from.cardId) && cardIds.has(conn.to.cardId)) {
-            adj.get(conn.from.cardId).push(conn.to.cardId);
-            inDegree.set(conn.to.cardId, (inDegree.get(conn.to.cardId) || 0) + 1);
-        }
-    });
-    const queue = [];
-    cardIds.forEach(id => { if (inDegree.get(id) === 0) queue.push(id); });
-    while (queue.length > 0) {
-        const u = queue.shift();
-        sorted.push(u);
-        adj.get(u)?.forEach(v => {
-            inDegree.set(v, inDegree.get(v) - 1);
-            if (inDegree.get(v) === 0) queue.push(v);
-        });
-    }
-    return sorted;
 }
 
 function sortLayerByBarycenter(layer, cardToLayerMap, layerIndex, isUpstreamPass) {
