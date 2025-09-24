@@ -6,7 +6,6 @@ import dom from '/SatisfiedVisual/js/dom.js';
 import state from '/SatisfiedVisual/js/state.js';
 import { createCard, deleteCards } from '/SatisfiedVisual/js/core/card.js';
 import { groupedArrangeLayout } from '/SatisfiedVisual/js/core/layout.js';
-import { autoBuildInputsForCard } from '/SatisfiedVisual/js/core/autobuild.js';
 import { showModal, showAutoBuildOptionsModal, showAutoBalanceOptionsModal } from '/SatisfiedVisual/js/ui/modals.js';
 import { renderCardSelections } from '/SatisfiedVisual/js/ui/render.js';
 
@@ -74,9 +73,7 @@ export function showContextMenu(e, cardData) {
     const autoBuildBtn = menu.querySelector('[data-action="autobuild-inputs"]');
     if (autoBuildBtn) {
         autoBuildBtn.addEventListener('click', () => {
-            showAutoBuildOptionsModal((options) => {
-                autoBuildInputsForCard(cardData, options);
-            });
+            showAutoBuildOptionsModal(cardData);
             closeMenu();
         });
     }
