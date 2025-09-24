@@ -68,9 +68,9 @@ export const recipeData = {
       {name: 'Stinger Protein', inputs: {'Stinger Remains': 20}, outputs: {'Alien Protein': 20}},
       {name: 'Stun Rebar', inputs: {'Iron Rebar': 10}, outputs: {'Stun Rebar': 5}},
       {name: 'Wire', inputs: {'Copper Ingot': 15}, outputs: {'Wire': 30}},
-      // --- NEW ALTERNATES ---
       {name: 'Cast Screw', inputs: {'Iron Ingot': 12.5}, outputs: {'Screw': 50}, isAlternate: true},
-      {name: 'Iron Wire', inputs: {'Iron Ingot': 12.5}, outputs: {'Wire': 22.5}, isAlternate: true}
+      {name: 'Iron Wire', inputs: {'Iron Ingot': 12.5}, outputs: {'Wire': 22.5}, isAlternate: true},
+      {name: 'Steel Rod', inputs: {'Steel Ingot': 12}, outputs: {'Iron Rod': 48}, isAlternate: true}
     ],
     'Smelter': [
       {name: 'Caterium Ingot', inputs: {'Caterium Ore': 45}, outputs: {'Caterium Ingot': 15}},
@@ -123,12 +123,13 @@ export const recipeData = {
       {name: 'Smart Plating', inputs: {'Reinforced Iron Plate': 2, 'Rotor': 2}, outputs: {'Smart Plating': 2}},
       {name: 'Stator', inputs: {'Steel Pipe': 15, 'Wire': 40}, outputs: {'Stator': 5}},
       {name: 'Versatile Framework', inputs: {'Modular Frame': 2.5, 'Steel Beam': 30}, outputs: {'Versatile Framework': 5}},
-      // --- NEW ALTERNATES ---
       {name: 'Adhered Iron Plate', inputs: {'Iron Plate': 11.25, 'Rubber': 3.75}, outputs: {'Reinforced Iron Plate': 3.75}, isAlternate: true},
       {name: 'Bolted Frame', inputs: {'Reinforced Iron Plate': 7.5, 'Screw': 140}, outputs: {'Modular Frame': 5}, isAlternate: true},
       {name: 'Stitched Iron Plate', inputs: {'Iron Plate': 18.75, 'Wire': 75}, outputs: {'Reinforced Iron Plate': 5.625}, isAlternate: true},
       {name: 'Steel Rotor', inputs: {'Steel Pipe': 10, 'Wire': 30}, outputs: {'Rotor': 5}, isAlternate: true},
-      {name: 'Caterium Circuit Board', inputs: {'Plastic': 12.5, 'Quickwire': 37.5}, outputs: {'Circuit Board': 8.75}, isAlternate: true}
+      {name: 'Caterium Circuit Board', inputs: {'Plastic': 12.5, 'Quickwire': 37.5}, outputs: {'Circuit Board': 8.75}, isAlternate: true},
+      {name: 'Coated Iron Plate', inputs: {'Iron Ingot': 50, 'Plastic': 10}, outputs: {'Iron Plate': 75}, isAlternate: true},
+      {name: 'Encased Industrial Pipe', inputs: {'Steel Pipe': 28, 'Concrete': 20}, outputs: {'Encased Industrial Beam': 4}, isAlternate: true}
     ],
     'Manufacturer': [
       {name: 'Adaptive Control Unit', inputs: {'Automated Wiring': 5, 'Circuit Board': 5, 'Heavy Modular Frame': 1, 'Computer': 2}, outputs: {'Adaptive Control Unit': 1}},
@@ -150,13 +151,15 @@ export const recipeData = {
       {name: 'Thermal Propulsion Rocket', inputs: {'Modular Engine': 2.5, 'Turbo Motor': 1, 'Cooling System': 3, 'Fused Modular Frame': 1}, outputs: {'Thermal Propulsion Rocket': 1}},
       {name: 'Turbo Motor', inputs: {'Cooling System': 7.5, 'Radio Control Unit': 3.75, 'Motor': 7.5, 'Rubber': 45}, outputs: {'Turbo Motor': 1.875}},
       {name: 'Uranium Fuel Rod', inputs: {'Encased Uranium Cell': 20, 'Encased Industrial Beam': 1.2, 'Electromagnetic Control Rod': 2}, outputs: {'Uranium Fuel Rod': 0.4}},
-      // --- NEW ALTERNATES ---
       {name: 'Automated Speed Wiring', inputs: {'Stator': 3.75, 'Wire': 75, 'High-Speed Connector': 1.875}, outputs: {'Automated Wiring': 7.5}, isAlternate: true},
       {name: 'Caterium Computer', inputs: {'Circuit Board': 7, 'Quickwire': 28, 'Rubber': 12}, outputs: {'Computer': 1}, isAlternate: true},
       {name: 'Heavy Encased Frame', inputs: {'Modular Frame': 7.5, 'Encased Industrial Beam': 9.375, 'Steel Pipe': 33.75, 'Concrete': 20.625}, outputs: {'Heavy Modular Frame': 2.8125}, isAlternate: true},
       {name: 'Insulated Crystal Oscillator', inputs: {'Quartz Crystal': 18.75, 'Rubber': 11.25, 'AI Limiter': 1.875}, outputs: {'Crystal Oscillator': 1.875}, isAlternate: true},
       {name: 'Radio Control System', inputs: {'Crystal Oscillator': 1.5, 'Circuit Board': 15, 'Aluminum Casing': 90, 'Rubber': 45}, outputs: {'Radio Control Unit': 4.5}, isAlternate: true},
-      {name: 'Turbo Electric Motor', inputs: {'Motor': 6.5625, 'Radio Control Unit': 8.4375, 'Electromagnetic Control Rod': 4.6875, 'Rotor': 6.5625}, outputs: {'Turbo Motor': 2.8125}, isAlternate: true}
+      {name: 'Turbo Electric Motor', inputs: {'Motor': 6.5625, 'Radio Control Unit': 8.4375, 'Electromagnetic Control Rod': 4.6875, 'Rotor': 6.5625}, outputs: {'Turbo Motor': 2.8125}, isAlternate: true},
+      {name: 'Rigour Motor', inputs: {'Crystal Oscillator': 1.875, 'Stator': 3.75}, outputs: {'Motor': 3.75}, isAlternate: true},
+      {name: 'Super-State Computer', inputs: {'Computer': 3.6, 'AI Limiter': 2.4, 'Crystal Oscillator': 1.2}, outputs: {'Supercomputer': 2.4}, isAlternate: true},
+      {name: 'Classic Battery', inputs: {'Sulfur': 45, 'Alclad Aluminum Sheet': 52.5, 'Plastic': 60, 'Wire': 90}, outputs: {'Battery': 30}, isAlternate: true}
     ],
     'Refinery': [
       {name: 'Alumina Solution', inputs: {'Bauxite': 120, 'Water': 180}, outputs: {'Alumina Solution': 120, 'Silica': 50}},
