@@ -11,7 +11,7 @@ import { updateAllCalculations } from '/SatisfiedVisual/js/core/calculations.js'
 import { startBlueprintPaste } from '/SatisfiedVisual/js/core/io.js';
 import { loadState } from '/SatisfiedVisual/js/core/io.js';
 import { autoBalanceChain } from '/SatisfiedVisual/js/core/balancer.js';
-import { autoBuildInputsForCard } from '/SatisfiedVisual/js/core/autoBuild.js';
+import { autoBuildInputsForCard } from '/SatisfiedVisual/js/core/autobuild.js';
 
 const USER_SETTINGS_KEY = 'satisfactoryPlannerSettingsV1';
 
@@ -766,4 +766,5 @@ export function showAutoBalanceOptionsModal(cardData) {
     modal.querySelector('#cancel-autobalance').addEventListener('click', closeModal);
     modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
 }
+
 
